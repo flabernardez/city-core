@@ -8,48 +8,41 @@
  * Author URI:  https://flabernardez.com
  * License:     GPL-2.0-or-later
  * Text Domain: city-core
+ * Domain Path: /languages
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+// -------------------------------------------------------------------------
+// Constants
+// -------------------------------------------------------------------------
+
+define( 'CITY_CORE_VERSION', '0.1' );
+define( 'CITY_CORE_DIR', plugin_dir_path( __FILE__ ) );
+define( 'CITY_CORE_URL', plugin_dir_url( __FILE__ ) );
+
+// -------------------------------------------------------------------------
+// Includes
+// -------------------------------------------------------------------------
+
+require_once CITY_CORE_DIR . 'includes/city-wp-settings.php';
+require_once CITY_CORE_DIR . 'includes/city-cpts.php';
+require_once CITY_CORE_DIR . 'includes/city-poi-meta.php';
+require_once CITY_CORE_DIR . 'includes/city-map-geojson.php';
+require_once CITY_CORE_DIR . 'includes/city-map-frontend.php';
+
+// -------------------------------------------------------------------------
+// Text domain
+// -------------------------------------------------------------------------
+
 /**
- * Disables comments sitewide.
- *
- * Closes comments on all post types, removes comment support,
- * hides existing comments and the admin menu entry.
+ * Loads the plugin text domain for translations.
  *
  * @since 0.1
  */
-function city_disable_comments() {
-	// Close comments on all existing posts.
-	add_filter( 'comments_open', '__return_false', 20, 2 );
-	add_filter( 'pings_open', '__return_false', 20, 2 );
-
-	// Hide existing comments.
-	add_filter( 'comments_array', '__return_empty_array', 10, 2 );
-
-	// Remove comment support from all post types.
-	add_action( 'init', function () {
-		foreach ( get_post_types() as $post_type ) {
-			if ( post_type_supports( $post_type, 'comments' ) ) {
-				remove_post_type_support( $post_type, 'comments' );
-				remove_post_type_support( $post_type, 'trackbacks' );
-			}
-		}
-	} );
-
-	// Remove comments from the admin menu.
-	add_action( 'admin_menu', function () {
-		remove_menu_page( 'edit-comments.php' );
-	} );
-
-	// Remove comments from the admin bar.
-	add_action( 'init', function () {
-		if ( is_admin_bar_showing() ) {
-			remove_action( 'admin_bar_menu', 'wp_admin_bar_comments_menu', 60 );
-		}
-	} );
+function city_core_load_textdomain() {
+	load_plugin_textdomain( 'city-core', false, dirname( plugin_basename( __FILE__ ) ) . '/languages' );
 }
-add_action( 'plugins_loaded', 'city_disable_comments' );
+add_action( 'init', 'city_core_load_textdomain' );
