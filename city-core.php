@@ -30,8 +30,9 @@ define( 'CITY_CORE_URL', plugin_dir_url( __FILE__ ) );
 require_once CITY_CORE_DIR . 'includes/city-wp-settings.php';
 require_once CITY_CORE_DIR . 'includes/city-cpts.php';
 require_once CITY_CORE_DIR . 'includes/city-poi-meta.php';
+require_once CITY_CORE_DIR . 'includes/city-poi-category-meta.php';
 require_once CITY_CORE_DIR . 'includes/city-map-geojson.php';
-require_once CITY_CORE_DIR . 'includes/city-map-frontend.php';
+require_once CITY_CORE_DIR . 'includes/city-map-block.php';
 
 // -------------------------------------------------------------------------
 // Text domain

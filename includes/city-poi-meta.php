@@ -2,8 +2,7 @@
 /**
  * POI Meta Fields: Latitude and Longitude.
  *
- * Registers post meta for the POI custom post type and renders
- * a classic meta box with two numeric inputs in the editor.
+ * Uses classic meta boxes for compatibility with both classic and block editors.
  *
  * @package CityCore
  * @since   0.1
@@ -19,90 +18,78 @@ if ( ! defined( 'ABSPATH' ) ) {
  * @since 0.1
  */
 function city_register_poi_meta() {
-	$meta_args = array(
-		'type'              => 'number',
+	register_post_meta( 'poi', 'city_poi_lat', array(
+		'type'              => 'string',
 		'single'            => true,
 		'show_in_rest'      => true,
-		'sanitize_callback' => 'city_sanitize_coordinate',
+		'sanitize_callback' => 'sanitize_text_field',
 		'auth_callback'     => function () {
 			return current_user_can( 'edit_posts' );
 		},
-	);
+	) );
 
-	register_post_meta( 'poi', 'city_poi_lat', $meta_args );
-	register_post_meta( 'poi', 'city_poi_lng', $meta_args );
+	register_post_meta( 'poi', 'city_poi_lng', array(
+		'type'              => 'string',
+		'single'            => true,
+		'show_in_rest'      => true,
+		'sanitize_callback' => 'sanitize_text_field',
+		'auth_callback'     => function () {
+			return current_user_can( 'edit_posts' );
+		},
+	) );
 }
-add_action( 'init', 'city_register_poi_meta' );
+add_action( 'init', 'city_register_poi_meta', 20 );
 
 /**
- * Sanitizes a coordinate value.
- *
- * @since 0.1
- *
- * @param mixed $value Raw coordinate value.
- * @return float|string Sanitized float or empty string.
- */
-function city_sanitize_coordinate( $value ) {
-	if ( '' === $value || null === $value ) {
-		return '';
-	}
-	return (float) $value;
-}
-
-/**
- * Adds the coordinates meta box to the POI editor.
+ * Add meta box for POI coordinates.
  *
  * @since 0.1
  */
-function city_add_poi_coordinates_meta_box() {
+function city_add_poi_coordinates_metabox() {
 	add_meta_box(
 		'city_poi_coordinates',
 		__( 'Coordinates', 'city-core' ),
-		'city_poi_coordinates_meta_box_callback',
+		'city_poi_coordinates_metabox_callback',
 		'poi',
 		'side',
 		'default'
 	);
 }
-add_action( 'add_meta_boxes', 'city_add_poi_coordinates_meta_box' );
+add_action( 'add_meta_boxes', 'city_add_poi_coordinates_metabox' );
 
 /**
- * Renders the coordinates meta box.
+ * Render the coordinates meta box.
  *
  * @since 0.1
  *
- * @param WP_Post $post Current post object.
+ * @param WP_Post $post Post object.
  */
-function city_poi_coordinates_meta_box_callback( $post ) {
-	wp_nonce_field( 'city_poi_coordinates_save', 'city_poi_coordinates_nonce' );
+function city_poi_coordinates_metabox_callback( $post ) {
+	wp_nonce_field( 'city_poi_save_coordinates', 'city_poi_coordinates_nonce' );
 
 	$lat = get_post_meta( $post->ID, 'city_poi_lat', true );
 	$lng = get_post_meta( $post->ID, 'city_poi_lng', true );
 	?>
 	<p>
-		<label for="city_poi_lat">
-			<strong><?php esc_html_e( 'Latitude', 'city-core' ); ?></strong>
-		</label><br>
-		<input type="number" step="any" id="city_poi_lat" name="city_poi_lat"
-			   value="<?php echo esc_attr( $lat ); ?>"
-			   style="width:100%;" placeholder="41.4036299">
+		<label for="city_poi_lat"><?php esc_html_e( 'Latitude', 'city-core' ); ?></label><br>
+		<input type="number" step="any" id="city_poi_lat" name="city_poi_lat" 
+			   value="<?php echo esc_attr( $lat ); ?>" 
+			   placeholder="41.4036299" style="width: 100%;">
 	</p>
 	<p>
-		<label for="city_poi_lng">
-			<strong><?php esc_html_e( 'Longitude', 'city-core' ); ?></strong>
-		</label><br>
-		<input type="number" step="any" id="city_poi_lng" name="city_poi_lng"
-			   value="<?php echo esc_attr( $lng ); ?>"
-			   style="width:100%;" placeholder="2.1743558">
+		<label for="city_poi_lng"><?php esc_html_e( 'Longitude', 'city-core' ); ?></label><br>
+		<input type="number" step="any" id="city_poi_lng" name="city_poi_lng" 
+			   value="<?php echo esc_attr( $lng ); ?>" 
+			   placeholder="2.1743558" style="width: 100%;">
 	</p>
 	<p class="description">
-		<?php esc_html_e( 'Enter the decimal coordinates for this point of interest.', 'city-core' ); ?>
+		<?php esc_html_e( 'Decimal coordinates for this point of interest.', 'city-core' ); ?>
 	</p>
 	<?php
 }
 
 /**
- * Saves the coordinates meta box data.
+ * Save POI coordinates meta.
  *
  * @since 0.1
  *
@@ -113,7 +100,7 @@ function city_save_poi_coordinates( $post_id ) {
 		return;
 	}
 
-	if ( ! wp_verify_nonce( $_POST['city_poi_coordinates_nonce'], 'city_poi_coordinates_save' ) ) {
+	if ( ! wp_verify_nonce( $_POST['city_poi_coordinates_nonce'], 'city_poi_save_coordinates' ) ) {
 		return;
 	}
 
@@ -125,14 +112,18 @@ function city_save_poi_coordinates( $post_id ) {
 		return;
 	}
 
-	$fields = array( 'city_poi_lat', 'city_poi_lng' );
+	$lat = isset( $_POST['city_poi_lat'] ) ? sanitize_text_field( $_POST['city_poi_lat'] ) : '';
+	$lng = isset( $_POST['city_poi_lng'] ) ? sanitize_text_field( $_POST['city_poi_lng'] ) : '';
 
-	foreach ( $fields as $field ) {
-		if ( isset( $_POST[ $field ] ) && '' !== $_POST[ $field ] ) {
-			update_post_meta( $post_id, $field, city_sanitize_coordinate( $_POST[ $field ] ) );
-		} else {
-			delete_post_meta( $post_id, $field );
-		}
+	// Validate coordinates are reasonable values.
+	if ( ! empty( $lat ) && ( ! is_numeric( $lat ) || $lat < -90 || $lat > 90 ) ) {
+		$lat = '';
 	}
+	if ( ! empty( $lng ) && ( ! is_numeric( $lng ) || $lng < -180 || $lng > 180 ) ) {
+		$lng = '';
+	}
+
+	update_post_meta( $post_id, 'city_poi_lat', $lat );
+	update_post_meta( $post_id, 'city_poi_lng', $lng );
 }
 add_action( 'save_post_poi', 'city_save_poi_coordinates' );

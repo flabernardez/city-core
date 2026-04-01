@@ -84,8 +84,6 @@ function city_register_city_taxonomy() {
 		'search_items'               => __( 'Search Cities', 'city-core' ),
 		'popular_items'              => __( 'Popular Cities', 'city-core' ),
 		'all_items'                  => __( 'All Cities', 'city-core' ),
-		'parent_item'                => __( 'Parent City', 'city-core' ),
-		'parent_item_colon'          => __( 'Parent City:', 'city-core' ),
 		'edit_item'                  => __( 'Edit City', 'city-core' ),
 		'update_item'                => __( 'Update City', 'city-core' ),
 		'add_new_item'               => __( 'Add New City', 'city-core' ),
@@ -103,7 +101,7 @@ function city_register_city_taxonomy() {
 
 	$args = array(
 		'labels'            => $labels,
-		'hierarchical'      => true,
+		'hierarchical'      => false,
 		'public'            => true,
 		'show_ui'           => true,
 		'show_admin_column' => true,
