@@ -204,7 +204,7 @@ function city_map_block_render( $attributes, $content, $block ) {
 #city-map .leaflet-tile{filter:saturate(.65) hue-rotate(12deg) brightness(1.02) contrast(1.06);}
 
 /* Button */
-.city-map-button{position:absolute;left:50%;bottom:40px;transform:translateX(-50%);z-index:3000;display:flex;flex-direction:column;align-items:center;}
+.city-map-button{position:absolute;left:50%;bottom:20vh;transform:translateX(-50%);z-index:3000;display:flex;flex-direction:column;align-items:center;}
 #city-center-user-btn{display:inline-flex;align-items:center;gap:8px;white-space:nowrap;background:rgba(255,255,255,.95);color:#063b2f;border-radius:999px;border:2px solid #00624D;box-shadow:0 12px 24px rgba(0,0,0,.25);backdrop-filter:blur(8px);padding:12px 18px;font-weight:400;font-family:var(--wp--preset--font-family--system-font);font-size:inherit;text-decoration:none;transition:transform .12s ease,box-shadow .12s ease;}
 #city-center-user-btn:active,#city-center-user-btn.tap{transform:scale(.96);box-shadow:0 6px 14px rgba(0,0,0,.22);}
 
