@@ -1,0 +1,5 @@
+/*
+ * City Map block — styles are output inline by city_map_block_render()
+ * in includes/city-map-block.php to guarantee they are always present
+ * regardless of WordPress block-style enqueueing order.
+ */

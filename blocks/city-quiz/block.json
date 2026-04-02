@@ -1,0 +1,20 @@
+{
+	"$schema": "https://schemas.wp.org/trunk/block.json",
+	"apiVersion": 3,
+	"name": "city-core/quiz",
+	"version": "0.3.0",
+	"title": "POI Quiz",
+	"category": "widgets",
+	"textdomain": "city-core",
+	"supports": {
+		"html": false
+	},
+	"attributes": {
+		"poiId": {
+			"type": "integer",
+			"default": 0
+		}
+	},
+	"editorScript": "file:./index.js",
+	"style": "file:./style-index.css"
+}

@@ -1,0 +1,28 @@
+{
+	"$schema": "https://schemas.wp.org/trunk/block.json",
+	"apiVersion": 3,
+	"name": "city-core/map",
+	"version": "0.1.0",
+	"title": "City Map",
+	"category": "embed",
+	"description": "Full-screen Leaflet map showing the Points of Interest for the current city. POIs unlock when the visitor is nearby.",
+	"supports": {
+		"html": false,
+		"align": ["full", "wide"]
+	},
+	"attributes": {
+		"align": {
+			"type": "string",
+			"default": "full"
+		},
+		"unlockRadius": {
+			"type": "number",
+			"default": 50
+		}
+	},
+	"textdomain": "city-core",
+	"editorScript": "file:./index.js",
+	"style": "file:./style.css",
+	"viewScriptModule": "file:./view.js",
+	"usesContext": ["postId", "postType"]
+}
