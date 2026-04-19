@@ -288,6 +288,98 @@ async function initCityMap() {
 
 	fitAll();
 
+	// ── Category filtering ───────────────────────────────────────────────────
+	let activeCategory = null;
+
+	// Modal element for "no results".
+	const noResultsModal = document.createElement( 'div' );
+	noResultsModal.id = 'city-no-results-modal';
+	noResultsModal.style.cssText = 'display:none; position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); z-index:2000;';
+	noResultsModal.innerHTML = '<div class="city-popup" style="max-width:260px;"><div class="city-popup-inner" style="padding:16px 20px; text-align:center;"><p style="margin:0; font-size:14px; font-weight:700; color:#555;">No hay ningún punto de esa categoría en esta ciudad</p></div></div>';
+	const mapWrapper = document.getElementById( 'city-map-wrapper' );
+	if ( mapWrapper ) {
+		mapWrapper.appendChild( noResultsModal );
+	}
+
+	function filterMarkersByCategory( categorySlug ) {
+		activeCategory = categorySlug;
+
+		// Update URL without page reload.
+		const url = new URL( window.location.href );
+		if ( categorySlug ) {
+			url.searchParams.set( 'category', categorySlug );
+		} else {
+			url.searchParams.delete( 'category' );
+		}
+		window.history.replaceState( {}, '', url.toString() );
+
+		// Show/hide markers.
+		let visibleMarkers = [];
+		for ( const slug in markers ) {
+			const item = markers[ slug ];
+			const poiCategory = item.poi.categorySlug || '';
+
+			if ( ! activeCategory || poiCategory === activeCategory ) {
+				item.marker.addTo( map );
+				visibleMarkers.push( item.marker );
+			} else {
+				item.marker.remove();
+			}
+		}
+
+		// Show/hide no-results modal.
+		if ( visibleMarkers.length === 0 && activeCategory ) {
+			noResultsModal.style.display = 'block';
+		} else {
+			noResultsModal.style.display = 'none';
+		}
+
+		// Re-fit bounds to visible markers.
+		if ( visibleMarkers.length === 0 ) {
+			if ( ! activeCategory ) {
+				map.setView( [ 0, 0 ], 2 );
+			}
+		} else if ( visibleMarkers.length === 1 ) {
+			map.setView( visibleMarkers[ 0 ].getLatLng(), 16 );
+		} else {
+			map.fitBounds( L.featureGroup( visibleMarkers ).getBounds(), { padding: [ 50, 50 ] } );
+		}
+
+		// Update active state on category links.
+		document.querySelectorAll( '.city-categories a' ).forEach( function( link ) {
+			const href = link.getAttribute( 'href' ) || '';
+			const match = href.match( /\/poi-category\/([^\/]+)\/?/ );
+			const linkSlug = match ? match[ 1 ] : '';
+
+			if ( ! activeCategory || linkSlug === activeCategory ) {
+				link.classList.add( 'city-category-active' );
+			} else {
+				link.classList.remove( 'city-category-active' );
+			}
+		} );
+	}
+
+	// Listen for clicks on category links within .city-categories.
+	document.addEventListener( 'click', function( e ) {
+		const link = e.target.closest( '.city-categories a' );
+		if ( ! link ) return;
+
+		const href = link.getAttribute( 'href' ) || '';
+		const match = href.match( /\/poi-category\/([^\/]+)\/?/ );
+		if ( ! match ) return;
+
+		e.preventDefault();
+		const categorySlug = match[ 1 ];
+		filterMarkersByCategory( categorySlug );
+	} );
+
+	// Apply category from URL on load.
+	const urlParams = new URL( window.location.href ).searchParams;
+	const urlCategory = urlParams.get( 'category' );
+	if ( urlCategory ) {
+		filterMarkersByCategory( urlCategory );
+	}
+
 	// Invalidate after CSS has painted.
 	setTimeout( () => { forceBlockFullWidth( mapEl ); map.invalidateSize(); }, 250 );
 	window.addEventListener( 'load', () => { setTimeout( () => { map.invalidateSize(); fitAll(); }, 300 ); } );

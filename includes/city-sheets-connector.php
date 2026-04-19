@@ -72,9 +72,17 @@ function city_ajax_import_pois() {
 	$required = array( 'nombre', 'ciudad', 'categoria' );
 	foreach ( $required as $req ) {
 		if ( ! isset( $col[ $req ] ) ) {
-			wp_send_json_error( "Missing required column: $req (sanitized as '$req')" );
+			wp_send_json_error( "Missing required column: $req. Found columns: " . implode( ', ', array_keys( $col ) ) );
 		}
 	}
+
+	// DEBUG: return column mapping so we can see what was parsed.
+	$debug_info = array(
+		'header' => $header,
+		'col_map' => $col,
+		'first_row' => ! empty( $rows ) ? $rows[0] : array(),
+	);
+	set_transient( 'city_import_debug', $debug_info, 300 );
 
 	$results = array(
 		'created' => 0,
@@ -82,6 +90,13 @@ function city_ajax_import_pois() {
 		'errors' => 0,
 		'log' => array(),
 	);
+
+	// DEBUG: log header and first row to see what columns are mapped.
+	error_log( 'CITY IMPORT: header=' . print_r( $header, true ) );
+	error_log( 'CITY IMPORT: col mapping=' . print_r( $col, true ) );
+	if ( ! empty( $rows ) ) {
+		error_log( 'CITY IMPORT: first row=' . print_r( $rows[0], true ) );
+	}
 
 	foreach ( $rows as $row ) {
 		// Ensure row has enough columns.
@@ -110,7 +125,11 @@ function city_ajax_import_pois() {
 	);
 	$results['log'][] = $summary;
 
-	wp_send_json_success( $summary . "\n\n" . implode( "\n", $results['log'] ) );
+	// Append debug info to response.
+	$debug = get_transient( 'city_import_debug' );
+	$debug_txt = "\n\nDEBUG INFO:\n" . print_r( $debug, true );
+
+	wp_send_json_success( $summary . "\n\n" . implode( "\n", $results['log'] ) . $debug_txt );
 }
 add_action( 'wp_ajax_city_import_pois', 'city_ajax_import_pois' );
 
@@ -235,19 +254,36 @@ function city_import_single_poi( $header, $row, $col ) {
 		}
 	}
 
-	// Set city taxonomy (create if doesn't exist).
+	// Debug: log raw values.
+	error_log( 'city-core import DEBUG: ciudad="' . $ciudad . '" categoria="' . $categoria . '"' );
+
+	// Set city taxonomy (create if doesn't exist, or get existing).
 	if ( ! empty( $ciudad ) ) {
-		$city_term = wp_insert_term( $ciudad, 'city', array( 'slug' => sanitize_title( $ciudad ) ) );
-		if ( ! is_wp_error( $city_term ) ) {
-			wp_set_object_terms( $poi_id, $city_term['term_id'], 'city' );
+		$city_slug = sanitize_title( remove_accents( $ciudad ) );
+		$city_term = wp_insert_term( $ciudad, 'city', array( 'slug' => $city_slug ) );
+		if ( is_wp_error( $city_term ) ) {
+			// Term already exists - get it by slug.
+			$existing = get_term_by( 'slug', $city_slug, 'city' );
+			if ( $existing ) {
+				wp_set_object_terms( $poi_id, (int) $existing->term_id, 'city' );
+			}
+		} else {
+			wp_set_object_terms( $poi_id, (int) $city_term['term_id'], 'city' );
 		}
 	}
 
-	// Set poi-category taxonomy (create if doesn't exist).
+	// Set poi-category taxonomy (create if doesn't exist, or get existing).
 	if ( ! empty( $categoria ) ) {
-		$cat_term = wp_insert_term( $categoria, 'poi-category', array( 'slug' => sanitize_title( $categoria ) ) );
-		if ( ! is_wp_error( $cat_term ) ) {
-			wp_set_object_terms( $poi_id, $cat_term['term_id'], 'poi-category' );
+		$cat_slug = sanitize_title( remove_accents( $categoria ) );
+		$cat_term = wp_insert_term( $categoria, 'poi-category', array( 'slug' => $cat_slug ) );
+		if ( is_wp_error( $cat_term ) ) {
+			// Term already exists - get it by slug.
+			$existing = get_term_by( 'slug', $cat_slug, 'poi-category' );
+			if ( $existing ) {
+				wp_set_object_terms( $poi_id, (int) $existing->term_id, 'poi-category' );
+			}
+		} else {
+			wp_set_object_terms( $poi_id, (int) $cat_term['term_id'], 'poi-category' );
 		}
 	}
 
@@ -281,11 +317,11 @@ function city_import_single_poi( $header, $row, $col ) {
 }
 
 /**
- * Extract coordinates from Google Maps URL.
+ * Extract coordinates from Google Maps URL or plain coordinates.
  *
  * @since 0.3
  *
- * @param string $url Google Maps URL.
+ * @param string $url Google Maps URL or plain coords like "lat,lng" or "lat lng".
  * @return array|false Array with 'lat' and 'lng' or false.
  */
 function city_extract_coords_from_maps_url( $url ) {
@@ -293,6 +329,15 @@ function city_extract_coords_from_maps_url( $url ) {
 		return false;
 	}
 
+	// Pattern for plain coordinates: "38.3420187,-0.4931912" or "38.3420187 -0.4931912"
+	if ( preg_match( '/^(-?\d+\.\d+)[,\s]+(-?\d+\.\d+)$/', trim( $url ), $matches ) ) {
+		return array(
+			'lat' => (float) $matches[1],
+			'lng' => (float) $matches[2],
+		);
+	}
+
+	// Patterns for Google Maps URLs.
 	$patterns = array(
 		'/@(-?\d+\.\d+),(-?\d+\.\d+)/',
 		'/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/',

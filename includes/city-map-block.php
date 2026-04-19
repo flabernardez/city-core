@@ -115,10 +115,11 @@ function city_map_block_render( $attributes, $content, $block ) {
 				$tolerance_meters = 500;
 			}
 
-			// ── Category colour and SVG ──────────────────────────────────
-			$color        = '';
-			$category_svg = '';
-			$terms        = get_the_terms( $poi_id, 'poi-category' );
+			// ── Category colour, SVG and slug ──────────────────────────────────
+			$color          = '';
+			$category_svg   = '';
+			$category_slug  = '';
+			$terms         = get_the_terms( $poi_id, 'poi-category' );
 
 			if ( $terms && ! is_wp_error( $terms ) ) {
 				foreach ( $terms as $term ) {
@@ -131,8 +132,11 @@ function city_map_block_render( $attributes, $content, $block ) {
 					if ( $term_svg && ! $category_svg ) {
 						$category_svg = $term_svg;
 					}
+					if ( $term->slug && ! $category_slug ) {
+						$category_slug = $term->slug;
+					}
 
-					if ( $color && $category_svg ) {
+					if ( $color && $category_svg && $category_slug ) {
 						break;
 					}
 				}
@@ -146,6 +150,7 @@ function city_map_block_render( $attributes, $content, $block ) {
 				'lng'           => (float) $lng,
 				'color'         => $color,
 				'categorySvg'   => $category_svg,
+				'categorySlug'  => $category_slug,
 				'tolerance'     => (int) $tolerance_meters,
 			);
 		}
@@ -216,6 +221,13 @@ function city_map_block_render( $attributes, $content, $block ) {
 .city-poi-marker--completed{color:#e07722;}
 .city-poi-marker:hover{transform:scale(1.12);}
 .city-poi-marker--inline{width:28px;height:28px;font-size:28px;margin:0 auto 6px;filter:none;}
+
+/* Category filter active state */
+.city-categories a.city-category-active{color:#e07722;font-weight:700;}
+
+/* No results modal */
+#city-no-results-modal{pointer-events:none;}
+#city-no-results-modal .city-popup-inner{background:#fff;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.18);}
 
 /* User location */
 .city-user-icon{position:relative;width:26px;height:26px;}
