@@ -250,7 +250,8 @@ function city_inject_poi_category_icons( $block_content, $block ) {
 		return $block_content;
 	}
 
-	return preg_replace_callback(
+	// Inject category SVG icons into each <li>.
+	$block_content = preg_replace_callback(
 		'/(<li[^>]*class="[^"]*cat-item-(\d+)[^"]*"[^>]*>\s*<a[^>]*>)(.*?)(<\/a>)/s',
 		function ( $matches ) {
 			$term_id = (int) $matches[2];
@@ -269,6 +270,14 @@ function city_inject_poi_category_icons( $block_content, $block ) {
 		},
 		$block_content
 	);
+
+	// Append a "Ver todas" link at the end of the <ul> so the user can clear
+	// the category filter and show all POIs on the map.
+	$view_all_label = esc_html__( 'Ver todas', 'city-core' );
+	$view_all_li    = '<li class="cat-item city-category-show-all"><a href="#">' . $view_all_label . '</a></li>';
+	$block_content  = str_replace( '</ul>', $view_all_li . '</ul>', $block_content );
+
+	return $block_content;
 }
 add_filter( 'render_block_core/categories', 'city_inject_poi_category_icons', 10, 2 );
 

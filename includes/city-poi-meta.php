@@ -555,6 +555,34 @@ add_action( 'save_post_poi', 'city_save_poi_quiz' );
  *
  * @param string $hook Current admin page hook.
  */
+/**
+ * Enqueue the POI meta sidebar script (PluginDocumentSettingPanel) and
+ * register its translations so wp.i18n.__() works in the editor.
+ *
+ * This script has no block.json, so WordPress cannot auto-discover it.
+ * We enqueue it explicitly via enqueue_block_editor_assets.
+ *
+ * @since 0.8
+ */
+function city_enqueue_poi_meta_editor_script() {
+	$asset = include CITY_CORE_DIR . 'blocks/city-poi-meta/index.asset.php';
+
+	wp_enqueue_script(
+		'city-poi-meta-editor',
+		CITY_CORE_URL . 'blocks/city-poi-meta/index.js',
+		$asset['dependencies'],
+		$asset['version'],
+		true
+	);
+
+	wp_set_script_translations(
+		'city-poi-meta-editor',
+		'city-core',
+		CITY_CORE_DIR . 'languages'
+	);
+}
+add_action( 'enqueue_block_editor_assets', 'city_enqueue_poi_meta_editor_script' );
+
 function city_enqueue_poi_admin_assets( $hook ) {
 	if ( ! in_array( $hook, array( 'post.php', 'post-new.php' ), true ) ) {
 		return;

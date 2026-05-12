@@ -238,21 +238,22 @@ function city_quiz_block_render( $attributes, $content, $block ) {
 		// Get correct answer from server-side rendered data.
 		var correctAnswer = <?php echo (int) $correct; ?>;
 
-		// Check if already completed from server-side meta.
-		var isServerCompleted = parseInt(container.dataset.completed) === 1;
-
-		// Check if already completed from localStorage.
+		// Check if already completed from localStorage (per-browser).
+		// NOTE: we intentionally ignore the server-side meta (data-completed)
+		// here because it is GLOBAL — once any visitor completes the quiz, the
+		// meta is set to 1 for everyone. The quiz state must be per-visitor,
+		// so we only rely on localStorage which is browser-specific.
 		var completedKey = 'city_poi_completed_' + (citySlug || 'default');
 		var completed = JSON.parse(localStorage.getItem(completedKey) || '[]');
 		var isLocalCompleted = completed.includes(poiSlug);
 
-		if (isServerCompleted || isLocalCompleted) {
+		if (isLocalCompleted) {
 			showCompletedState();
 		}
 
 		// Sync cookie city_poi_quiz_status with this POI's completion state.
 		// Block Visibility uses this cookie to show/hide template sections.
-		if (isServerCompleted || isLocalCompleted) {
+		if (isLocalCompleted) {
 			document.cookie = 'city_poi_quiz_status=ok; path=/; max-age=31536000; SameSite=Lax';
 		} else {
 			// Clear cookie so a previous ok/ko from another POI doesn't leak.
@@ -313,14 +314,8 @@ function city_quiz_block_render( $attributes, $content, $block ) {
 					}));
 
 				} else {
-					// Incorrect.
+					// Incorrect — do NOT reveal the correct answer.
 					this.classList.add('incorrect');
-					// Highlight correct answer.
-					options.forEach(function(o) {
-						if (parseInt(o.dataset.answer) === correctAnswer) {
-							o.classList.add('correct');
-						}
-					});
 					feedback.textContent = '<?php esc_html_e( 'Incorrect. Try again!', 'city-core' ); ?>';
 					feedback.className = 'city-quiz-feedback error';
 					feedback.style.display = 'block';
@@ -328,9 +323,9 @@ function city_quiz_block_render( $attributes, $content, $block ) {
 					// Set cookie for Block Visibility (session only).
 					document.cookie = 'city_poi_quiz_status=ko; path=/; SameSite=Lax';
 
-					// Re-enable options after a moment.
+					// Re-enable options after a moment so the user can retry.
 					setTimeout(function() {
-						options.forEach(function(o) { o.classList.remove('disabled', 'incorrect'); });
+						options.forEach(function(o) { o.classList.remove('disabled', 'incorrect', 'correct'); });
 						feedback.style.display = 'none';
 					}, 1500);
 				}

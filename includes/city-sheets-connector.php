@@ -710,6 +710,31 @@ function city_validate_sheet_consistency( $rows, $col ) {
 	$check_groups( $city_groups, __( 'Ciudad', 'city-core' ) );
 	$check_groups( $category_groups, __( 'Categoria', 'city-core' ) );
 
+	// 3. Validate Geo column: check that non-empty values can be parsed as coordinates.
+	$geo_idx    = isset( $col['geo'] ) ? (int) $col['geo'] : -1;
+	$nombre_idx = isset( $col['nombre'] ) ? (int) $col['nombre'] : -1;
+
+	if ( $geo_idx >= 0 ) {
+		foreach ( $rows as $i => $row ) {
+			$geo_raw = isset( $row[ $geo_idx ] ) ? trim( $row[ $geo_idx ] ) : '';
+			if ( '' === $geo_raw ) {
+				continue; // Empty Geo is OK (optional, can be set manually).
+			}
+			$coords = city_extract_coords_from_maps_url( $geo_raw );
+			if ( false === $coords ) {
+				$poi_name = ( $nombre_idx >= 0 && isset( $row[ $nombre_idx ] ) )
+					? trim( $row[ $nombre_idx ] )
+					: sprintf( 'row %d', $i + 2 );
+				$errors[] = sprintf(
+					/* translators: 1: raw Geo value, 2: POI name or row number */
+					__( 'Geo: "%1$s" (fila "%2$s") no tiene un formato de coordenadas reconocible. Usa "lat,lng", "lat lng" o una URL de Google Maps.', 'city-core' ),
+					$geo_raw,
+					$poi_name
+				);
+			}
+		}
+	}
+
 	return array( 'errors' => $errors );
 }
 

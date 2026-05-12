@@ -174,9 +174,10 @@ async function initCityMap() {
 	const poisData          = config.pois         || [];
 	const i18n              = config.i18n         || {};
 	const lockedUseCategory = !! config.lockedUseCategory;
-	const viewMore     = i18n.viewMore     || 'View more';
-	const lockedMsg    = i18n.lockedMsg    || 'Get closer to unlock this point of interest.';
-	const noResultsMsg = i18n.noResultsMsg || 'No hay ningún punto de esa categoría en esta ciudad';
+	const viewMore      = i18n.viewMore      || 'View more';
+	const lockedMsg     = i18n.lockedMsg     || 'Get closer to unlock this point of interest.';
+	const completedMsg  = i18n.completedMsg  || 'Completed!';
+	const noResultsMsg  = i18n.noResultsMsg  || 'No hay ningún punto de esa categoría en esta ciudad';
 
 	// ── Wait for Leaflet to be available ─────────────────────────────────────
 	if ( typeof L === 'undefined' ) {
@@ -237,7 +238,7 @@ async function initCityMap() {
 	function completedPopup( poi ) {
 		return `<div class="city-popup city-popup--completed"><div class="city-popup-inner">
 			<div class="city-popup-title">${ escapeHtml( poi.name ) }</div>
-			<p class="city-popup-completed-msg">Completed!</p>
+			<p class="city-popup-completed-msg">${ escapeHtml( completedMsg ) }</p>
 			<a class="city-popup-link" href="${ escapeHtml( poi.url ) }">${ escapeHtml( viewMore ) }</a>
 		</div></div>`;
 	}
