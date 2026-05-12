@@ -82,6 +82,18 @@ function city_enqueue_favorites_script() {
 		true
 	);
 
+	// Global reset-game handler — any element with class .city-reset-game
+	// clears player progress (server-side meta + cookies + localStorage)
+	// and reloads the page. Depends on city-favorites so window.cityCoreAjax
+	// (url + nonce) is already defined when this script runs.
+	wp_enqueue_script(
+		'city-reset-game',
+		CITY_CORE_URL . 'assets/js/city-reset-game.js',
+		array( 'city-favorites' ),
+		CITY_CORE_VERSION,
+		true
+	);
+
 	// Inject POI data (slug + citySlug) as a global on single POI pages.
 	if ( is_singular( 'poi' ) ) {
 		$poi_id     = get_the_ID();

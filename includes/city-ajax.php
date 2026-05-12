@@ -88,3 +88,26 @@ function city_ajax_get_poi_states() {
 }
 add_action( 'wp_ajax_city_get_poi_states', 'city_ajax_get_poi_states' );
 add_action( 'wp_ajax_nopriv_city_get_poi_states', 'city_ajax_get_poi_states' );
+
+/**
+ * Reset all player progress globally.
+ *
+ * Deletes the `city_poi_completed` and `city_poi_favorite` meta keys from
+ * EVERY post (delete_all=true), so map markers and quiz state return to
+ * their initial locked/un-completed state.
+ *
+ * Public endpoint (frontend dev button); will be removed for production.
+ *
+ * @since 0.8
+ */
+function city_ajax_reset_all_progress() {
+	check_ajax_referer( 'city_poi_nonce', 'nonce' );
+
+	// $delete_all = true: removes the meta key from every post in the site.
+	delete_metadata( 'post', 0, 'city_poi_completed', '', true );
+	delete_metadata( 'post', 0, 'city_poi_favorite',  '', true );
+
+	wp_send_json_success();
+}
+add_action( 'wp_ajax_city_reset_all_progress',        'city_ajax_reset_all_progress' );
+add_action( 'wp_ajax_nopriv_city_reset_all_progress', 'city_ajax_reset_all_progress' );
