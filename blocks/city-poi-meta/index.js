@@ -5,8 +5,10 @@
 	var useDispatch           = wp.data.useDispatch;
 	var TextControl           = wp.components.TextControl;
 	var SelectControl         = wp.components.SelectControl;
+	var Button                = wp.components.Button;
 	var registerPlugin        = wp.plugins.registerPlugin;
 	var PluginDocumentSettingPanel = wp.editPost.PluginDocumentSettingPanel;
+	var MediaUpload           = wp.blockEditor && wp.blockEditor.MediaUpload;
 
 	function CityPoiCoordinatesPanel() {
 		var postType = useSelect( function ( select ) {
@@ -191,5 +193,94 @@
 
 	registerPlugin( 'city-poi-coordinates', {
 		render: CityPoiCoordinatesPanel,
+	} );
+
+	function CityPoiQuizPanel() {
+		var postType = useSelect( function ( select ) {
+			return select( 'core/editor' ).getCurrentPostType();
+		} );
+
+		var meta = useSelect( function ( select ) {
+			var edited = select( 'core/editor' ).getEditedPostAttribute( 'meta' );
+			return edited || {};
+		}, [] );
+
+		var editPost = useDispatch( 'core/editor' ).editPost;
+
+		if ( postType !== 'poi' ) {
+			return null;
+		}
+
+		var rewardMessage = meta.city_poi_reward_message || '';
+		var rewardImageId = parseInt( meta.city_poi_quiz_correct_img, 10 ) || 0;
+
+		var rewardImageUrl = useSelect( function ( select ) {
+			if ( ! rewardImageId ) return '';
+			var media = select( 'core' ).getMedia( rewardImageId );
+			return media ? media.source_url : '';
+		}, [ rewardImageId ] );
+
+		var imageControl = MediaUpload ? el(
+			'div',
+			{ style: { marginTop: '12px' } },
+			el(
+				'label',
+				{ style: { fontWeight: '600', display: 'block', marginBottom: '6px' } },
+				__( 'Reward Image', 'city-core' )
+			),
+			rewardImageUrl ? el( 'img', {
+				src: rewardImageUrl,
+				style: { maxWidth: '100%', height: 'auto', display: 'block', marginBottom: '8px' },
+			} ) : null,
+			el( MediaUpload, {
+				onSelect: function ( media ) {
+					editPost( { meta: { city_poi_quiz_correct_img: media.id } } );
+				},
+				allowedTypes: [ 'image' ],
+				value: rewardImageId,
+				render: function ( args ) {
+					return el( Button, {
+						variant: 'secondary',
+						onClick: args.open,
+					}, rewardImageId ? __( 'Change image', 'city-core' ) : __( 'Select image', 'city-core' ) );
+				},
+			} ),
+			rewardImageId ? el( Button, {
+				variant: 'link',
+				isDestructive: true,
+				style: { marginLeft: '8px' },
+				onClick: function () {
+					editPost( { meta: { city_poi_quiz_correct_img: 0 } } );
+				},
+			}, __( 'Remove', 'city-core' ) ) : null,
+			el(
+				'p',
+				{ style: { fontSize: '12px', color: '#757575', marginTop: '4px' } },
+				__( 'Optional. Image shown when the quiz is answered correctly.', 'city-core' )
+			)
+		) : null;
+
+		return el(
+			PluginDocumentSettingPanel,
+			{
+				name:  'city-poi-quiz-settings',
+				title: __( 'Quiz Settings', 'city-core' ),
+				icon:  'awards',
+			},
+			el( TextControl, {
+				label:       __( 'Reward Message', 'city-core' ),
+				value:       rewardMessage,
+				onChange:     function ( val ) {
+					editPost( { meta: { city_poi_reward_message: val } } );
+				},
+				placeholder: __( 'Correct! POI marked as completed.', 'city-core' ),
+				help:        __( 'Custom message shown when the quiz is answered correctly. Leave empty for default.', 'city-core' ),
+			} ),
+			imageControl
+		);
+	}
+
+	registerPlugin( 'city-poi-quiz-settings', {
+		render: CityPoiQuizPanel,
 	} );
 } )();

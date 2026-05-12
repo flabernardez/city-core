@@ -1,5 +1,8 @@
 ( function ( $ ) {
 	$( function () {
-		$( '.city-color-picker' ).wpColorPicker();
+		var palette = ( window.cityPoiCategoryAdmin && window.cityPoiCategoryAdmin.themePalette ) || [];
+		$( '.city-color-picker' ).wpColorPicker({
+			palettes: palette.length ? palette : true
+		});
 	} );
 } )( jQuery );

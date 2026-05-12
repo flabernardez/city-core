@@ -54,7 +54,22 @@ function city_quiz_block_render( $attributes, $content, $block ) {
 	$answer3  = get_post_meta( $post_id, 'city_poi_quiz_answer_3', true );
 	$correct  = (int) get_post_meta( $post_id, 'city_poi_quiz_correct', true );
 	$hint     = get_post_meta( $post_id, 'city_poi_hint', true );
+	$reward_message = get_post_meta( $post_id, 'city_poi_reward_message', true );
+	if ( empty( $reward_message ) ) {
+		$reward_message = __( 'Correct! POI marked as completed.', 'city-core' );
+	} else {
+		// Defensive: decode HTML entities in a loop in case of double-encoding
+		// (e.g. &amp;quot; → &quot; → ") before passing to JS via esc_js().
+		$prev = '';
+		while ( $reward_message !== $prev ) {
+			$prev = $reward_message;
+			$reward_message = html_entity_decode( $reward_message, ENT_QUOTES, 'UTF-8' );
+		}
+	}
 	$poi_slug = get_post_field( 'post_name', $post_id );
+
+	// Get quiz colors from settings.
+	$colors = city_get_quiz_colors();
 
 	// If no quiz data, don't render.
 	if ( empty( $question ) || empty( $answer1 ) ) {
@@ -110,17 +125,17 @@ function city_quiz_block_render( $attributes, $content, $block ) {
 
 	<style>
 	.city-quiz {
-		background: #f8f5ea;
-		border: 2px solid #00624d;
-		border-radius: 12px;
+		background: <?php echo esc_attr( $colors['bg'] ); ?>;
+		border: 2px solid <?php echo esc_attr( $colors['border'] ); ?>;
+		border-radius: 0 !important;
 		padding: 24px;
 		margin: 20px 0;
-		font-family: var(--wp--preset--font-family--system-font, inherit);
+		font-family: inherit;
 	}
 	.city-quiz-question {
 		font-size: 18px;
 		font-weight: 700;
-		color: #18302b;
+		color: <?php echo esc_attr( $colors['question'] ); ?>;
 		margin: 0 0 16px;
 	}
 	.city-quiz-header {
@@ -143,23 +158,24 @@ function city_quiz_block_render( $attributes, $content, $block ) {
 		padding: 12px 16px;
 		background: white;
 		border: 2px solid #ddd;
-		border-radius: 8px;
 		cursor: pointer;
 		text-align: left;
 		font-size: 15px;
+		font-family: inherit;
+		color: <?php echo esc_attr( $colors['option_text'] ); ?>;
 		transition: all 0.2s ease;
 	}
 	.city-quiz-option:hover {
-		border-color: #00624d;
+		border-color: <?php echo esc_attr( $colors['border'] ); ?>;
 		background: #f0f9f6;
 	}
 	.city-quiz-option.correct {
-		background: #d4edda;
-		border-color: #28a745;
+		background: <?php echo esc_attr( $colors['correct_bg'] ); ?>;
+		border-color: <?php echo esc_attr( $colors['correct_border'] ); ?>;
 	}
 	.city-quiz-option.incorrect {
-		background: #f8d7da;
-		border-color: #dc3545;
+		background: <?php echo esc_attr( $colors['incorrect_bg'] ); ?>;
+		border-color: <?php echo esc_attr( $colors['incorrect_border'] ); ?>;
 	}
 	.city-quiz-option.disabled {
 		opacity: 0.6;
@@ -171,18 +187,19 @@ function city_quiz_block_render( $attributes, $content, $block ) {
 		justify-content: center;
 		width: 28px;
 		height: 28px;
-		background: #00624d;
+		background: <?php echo esc_attr( $colors['letter_bg'] ); ?>;
 		color: white;
 		border-radius: 50%;
+		font-family: inherit;
 		font-weight: 700;
 		font-size: 14px;
 		flex-shrink: 0;
 	}
 	.city-quiz-option.correct .city-quiz-option-letter {
-		background: #28a745;
+		background: <?php echo esc_attr( $colors['correct_border'] ); ?>;
 	}
 	.city-quiz-option.incorrect .city-quiz-option-letter {
-		background: #dc3545;
+		background: <?php echo esc_attr( $colors['incorrect_border'] ); ?>;
 	}
 	.city-quiz-option-text {
 		flex: 1;
@@ -190,17 +207,17 @@ function city_quiz_block_render( $attributes, $content, $block ) {
 	.city-quiz-feedback {
 		margin: 16px 0 0;
 		padding: 12px;
-		border-radius: 8px;
+		font-family: inherit;
 		font-weight: 600;
 		text-align: center;
 	}
 	.city-quiz-feedback.success {
-		background: #d4edda;
-		color: #155724;
+		background: <?php echo esc_attr( $colors['correct_bg'] ); ?>;
+		color: <?php echo esc_attr( $colors['feedback_success'] ); ?>;
 	}
 	.city-quiz-feedback.error {
-		background: #f8d7da;
-		color: #721c24;
+		background: <?php echo esc_attr( $colors['incorrect_bg'] ); ?>;
+		color: <?php echo esc_attr( $colors['feedback_error'] ); ?>;
 	}
 	</style>
 
@@ -233,6 +250,15 @@ function city_quiz_block_render( $attributes, $content, $block ) {
 			showCompletedState();
 		}
 
+		// Sync cookie city_poi_quiz_status with this POI's completion state.
+		// Block Visibility uses this cookie to show/hide template sections.
+		if (isServerCompleted || isLocalCompleted) {
+			document.cookie = 'city_poi_quiz_status=ok; path=/; max-age=31536000; SameSite=Lax';
+		} else {
+			// Clear cookie so a previous ok/ko from another POI doesn't leak.
+			document.cookie = 'city_poi_quiz_status=; path=/; max-age=0; SameSite=Lax';
+		}
+
 		options.forEach(function(btn) {
 			btn.addEventListener('click', function() {
 				var selected = parseInt(this.dataset.answer);
@@ -243,7 +269,7 @@ function city_quiz_block_render( $attributes, $content, $block ) {
 				if (selected === correctAnswer) {
 					// Correct!
 					this.classList.add('correct');
-					feedback.textContent = '<?php esc_html_e( 'Correct! POI marked as completed.', 'city-core' ); ?>';
+					feedback.textContent = '<?php echo esc_js( $reward_message ); ?>';
 					feedback.className = 'city-quiz-feedback success';
 					feedback.style.display = 'block';
 
@@ -253,10 +279,32 @@ function city_quiz_block_render( $attributes, $content, $block ) {
 						localStorage.setItem(completedKey, JSON.stringify(completed));
 					}
 
-					// Save to server via AJAX.
+					// Set cookie for Block Visibility (persistent 1 year).
+					document.cookie = 'city_poi_quiz_status=ok; path=/; max-age=31536000; SameSite=Lax';
+
+					// Save to server via AJAX, then reload so cookie-controlled
+					// sections (Block Visibility with city_poi_quiz_status=ok)
+					// render server-side with the reward content.
 					var xhr = new XMLHttpRequest();
 					xhr.open('POST', '<?php echo admin_url( 'admin-ajax.php' ); ?>', true);
 					xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+
+					var reloaded = false;
+					function reloadAfterFeedback() {
+						if (reloaded) return;
+						reloaded = true;
+						// Brief pause so the user sees the success message.
+						setTimeout(function () {
+							window.location.reload();
+						}, 1200);
+					}
+
+					xhr.onload  = reloadAfterFeedback;
+					xhr.onerror = reloadAfterFeedback;
+
+					// Safety net: reload even if onload/onerror never fire.
+					setTimeout(reloadAfterFeedback, 3000);
+
 					xhr.send('action=city_complete_poi&nonce=' + encodeURIComponent(nonce) + '&poi_id=' + poiId);
 
 					// Dispatch event for map to update.
@@ -276,6 +324,9 @@ function city_quiz_block_render( $attributes, $content, $block ) {
 					feedback.textContent = '<?php esc_html_e( 'Incorrect. Try again!', 'city-core' ); ?>';
 					feedback.className = 'city-quiz-feedback error';
 					feedback.style.display = 'block';
+
+					// Set cookie for Block Visibility (session only).
+					document.cookie = 'city_poi_quiz_status=ko; path=/; SameSite=Lax';
 
 					// Re-enable options after a moment.
 					setTimeout(function() {

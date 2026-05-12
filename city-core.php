@@ -19,7 +19,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 // Constants
 // -------------------------------------------------------------------------
 
-define( 'CITY_CORE_VERSION', '0.4' );
+define( 'CITY_CORE_VERSION', '0.6' );
 define( 'CITY_CORE_DIR', plugin_dir_path( __FILE__ ) );
 define( 'CITY_CORE_URL', plugin_dir_url( __FILE__ ) );
 
@@ -68,6 +68,18 @@ function city_enqueue_favorites_script() {
 			'url'   => admin_url( 'admin-ajax.php' ),
 			'nonce' => wp_create_nonce( 'city_poi_nonce' ),
 		)
+	);
+
+	// Global category filter — intercepts clicks on .city-categories links and
+	// applies the map filter when the map is present on the page.
+	// v2 uses capture-phase to bypass any third-party stopPropagation, and the
+	// rename forces a cache miss on aggressive CDNs/proxies.
+	wp_enqueue_script(
+		'city-category-filter',
+		CITY_CORE_URL . 'assets/js/city-category-filter-v2.js',
+		array(),
+		CITY_CORE_VERSION,
+		true
 	);
 
 	// Inject POI data (slug + citySlug) as a global on single POI pages.

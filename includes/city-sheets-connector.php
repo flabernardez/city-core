@@ -76,6 +76,16 @@ function city_ajax_import_pois() {
 		}
 	}
 
+	// Pre-pass consistency validation: abort if Ciudad/Categoria values have
+	// duplicate variants or likely typos. This prevents accidental duplicate
+	// terms from being auto-created by wp_insert_term().
+	$validation = city_validate_sheet_consistency( $rows, $col );
+	if ( ! empty( $validation['errors'] ) ) {
+		$msg = __( 'Import aborted. Please fix these inconsistencies in your Google Sheet and try again:', 'city-core' ) . "\n\n"
+			 . implode( "\n", $validation['errors'] );
+		wp_send_json_error( $msg );
+	}
+
 	// DEBUG: return column mapping so we can see what was parsed.
 	$debug_info = array(
 		'header' => $header,
@@ -134,6 +144,133 @@ function city_ajax_import_pois() {
 add_action( 'wp_ajax_city_import_pois', 'city_ajax_import_pois' );
 
 /**
+ * AJAX handler for POI import PREVIEW (dry-run).
+ *
+ * Downloads and parses the Google Sheet CSV, runs consistency validation,
+ * and returns a JSON payload with header, sample rows, totals, and the list
+ * of new cities/categories that would be created. Does NOT touch the DB.
+ *
+ * @since 0.8
+ */
+function city_ajax_preview_pois() {
+	if ( ! current_user_can( 'manage_options' ) ) {
+		wp_send_json_error( 'Unauthorized' );
+	}
+
+	if ( ! check_ajax_referer( 'city_import_pois', 'nonce', false ) ) {
+		wp_send_json_error( 'Invalid nonce' );
+	}
+
+	$sheets_url = get_option( 'city_sheets_url', '' );
+	if ( empty( $sheets_url ) ) {
+		wp_send_json_error( 'No Google Sheets URL configured. Save the URL first.' );
+	}
+
+	$csv_url = city_convert_sheets_to_csv( $sheets_url );
+	if ( ! $csv_url ) {
+		wp_send_json_error( 'Could not derive CSV export URL from the Google Sheets URL.' );
+	}
+
+	$response = wp_remote_get( $csv_url, array( 'timeout' => 30 ) );
+	if ( is_wp_error( $response ) ) {
+		wp_send_json_error( 'Failed to fetch sheet: ' . $response->get_error_message() );
+	}
+
+	$body = wp_remote_retrieve_body( $response );
+	if ( empty( $body ) ) {
+		wp_send_json_error( 'Empty response from Google Sheets.' );
+	}
+
+	$rows = city_parse_csv( $body );
+	if ( empty( $rows ) || count( $rows ) < 2 ) {
+		wp_send_json_error( 'No data found in sheet (need header + at least 1 row).' );
+	}
+
+	// Header parsing (same as import).
+	$header_raw = array_shift( $rows );
+	$header     = array_map( 'sanitize_title', array_map( 'trim', $header_raw ) );
+	$col        = array_flip( $header );
+
+	// Required columns check.
+	$required = array( 'nombre', 'ciudad', 'categoria' );
+	$missing  = array();
+	foreach ( $required as $req ) {
+		if ( ! isset( $col[ $req ] ) ) {
+			$missing[] = $req;
+		}
+	}
+	if ( ! empty( $missing ) ) {
+		wp_send_json_error( 'Missing required columns: ' . implode( ', ', $missing ) . '. Found: ' . implode( ', ', $header ) );
+	}
+
+	// Consistency validation (variants and typos).
+	$validation = city_validate_sheet_consistency( $rows, $col );
+
+	// Build a sample of the first 10 rows mapped column → value (use raw header for display).
+	$sample      = array();
+	$sample_size = min( 10, count( $rows ) );
+	for ( $i = 0; $i < $sample_size; $i++ ) {
+		$row    = array_pad( array_map( 'trim', $rows[ $i ] ), count( $header ), '' );
+		$mapped = array();
+		foreach ( $header_raw as $idx => $col_name ) {
+			$mapped[ trim( $col_name ) ] = isset( $row[ $idx ] ) ? $row[ $idx ] : '';
+		}
+		$sample[] = $mapped;
+	}
+
+	// Collect unique cities & categories that would be created.
+	$cities_seen     = array();
+	$categories_seen = array();
+	$ciudad_idx      = isset( $col['ciudad'] ) ? (int) $col['ciudad'] : -1;
+	$categoria_idx   = isset( $col['categoria'] ) ? (int) $col['categoria'] : -1;
+	foreach ( $rows as $row ) {
+		if ( $ciudad_idx >= 0 && isset( $row[ $ciudad_idx ] ) ) {
+			$v = trim( $row[ $ciudad_idx ] );
+			if ( '' !== $v ) {
+				$cities_seen[ $v ] = true;
+			}
+		}
+		if ( $categoria_idx >= 0 && isset( $row[ $categoria_idx ] ) ) {
+			$v = trim( $row[ $categoria_idx ] );
+			if ( '' !== $v ) {
+				$categories_seen[ $v ] = true;
+			}
+		}
+	}
+
+	$cities_list     = array_keys( $cities_seen );
+	$categories_list = array_keys( $categories_seen );
+
+	// Which of those cities/categories don't exist yet?
+	$new_cities = array();
+	foreach ( $cities_list as $name ) {
+		$slug = sanitize_title( remove_accents( $name ) );
+		if ( ! get_term_by( 'slug', $slug, 'city' ) ) {
+			$new_cities[] = $name;
+		}
+	}
+	$new_categories = array();
+	foreach ( $categories_list as $name ) {
+		$slug = sanitize_title( remove_accents( $name ) );
+		if ( ! get_term_by( 'slug', $slug, 'poi-category' ) ) {
+			$new_categories[] = $name;
+		}
+	}
+
+	wp_send_json_success( array(
+		'header'                 => array_values( array_map( 'trim', $header_raw ) ),
+		'total_rows'             => count( $rows ),
+		'sample'                 => $sample,
+		'errors'                 => $validation['errors'],
+		'cities_in_sheet'        => $cities_list,
+		'categories_in_sheet'    => $categories_list,
+		'new_cities'             => $new_cities,
+		'new_categories'         => $new_categories,
+	) );
+}
+add_action( 'wp_ajax_city_preview_pois', 'city_ajax_preview_pois' );
+
+/**
  * Convert Google Sheets URL to CSV export URL.
  *
  * @since 0.3
@@ -161,20 +298,27 @@ function city_convert_sheets_to_csv( $url ) {
  */
 function city_parse_csv( $csv ) {
 	$rows = array();
-	$lines = explode( "\n", $csv );
 
-	foreach ( $lines as $line ) {
-		$line = trim( $line );
-		if ( empty( $line ) ) {
+	// Use fgetcsv over a temp stream so multi-line cells (quoted text with
+	// embedded newlines) are preserved as a single field. Splitting on "\n"
+	// would corrupt rows whenever a cell contains a line break.
+	$handle = fopen( 'php://temp', 'r+' );
+	if ( ! $handle ) {
+		return $rows;
+	}
+
+	fwrite( $handle, $csv );
+	rewind( $handle );
+
+	while ( ( $row = fgetcsv( $handle, 0, ',', '"', '\\' ) ) !== false ) {
+		// fgetcsv returns array( null ) for empty lines — skip them.
+		if ( count( $row ) === 1 && ( null === $row[0] || '' === trim( (string) $row[0] ) ) ) {
 			continue;
 		}
-
-		// Parse CSV line (handles quoted values).
-		$row = str_getcsv( $line, ',', '"' );
-		if ( ! empty( $row ) ) {
-			$rows[] = $row;
-		}
+		$rows[] = $row;
 	}
+
+	fclose( $handle );
 
 	return $rows;
 }
@@ -209,7 +353,9 @@ function city_import_single_poi( $header, $row, $col ) {
 	$respuesta1 = $get( 'respuesta1' );
 	$respuesta2 = $get( 'respuesta2' );
 	$respuesta3 = $get( 'respuesta3' );
-	$correcta   = $get( 'correcta' );
+	$correcta           = $get( 'correcta' );
+	$reward_message     = $get( 'recompensa del quizz' );
+	$imagen_recompensa  = $get( 'imagen recompensa' );
 
 	// Validate required fields.
 	if ( empty( $nombre ) ) {
@@ -270,6 +416,10 @@ function city_import_single_poi( $header, $row, $col ) {
 		} else {
 			wp_set_object_terms( $poi_id, (int) $city_term['term_id'], 'city' );
 		}
+
+		// Ensure a `map` CPT post exists for this city so the /map/{slug}/
+		// page works out of the box when a new city appears in the sheet.
+		city_ensure_map_for_city( $city_slug, $ciudad );
 	}
 
 	// Set poi-category taxonomy (create if doesn't exist, or get existing).
@@ -303,9 +453,24 @@ function city_import_single_poi( $header, $row, $col ) {
 	update_post_meta( $poi_id, 'city_poi_quiz_answer_3', $respuesta3 );
 	update_post_meta( $poi_id, 'city_poi_quiz_correct', city_parse_quiz_correct( $correcta, $respuesta1, $respuesta2, $respuesta3 ) );
 
+	if ( ! empty( $reward_message ) ) {
+		update_post_meta( $poi_id, 'city_poi_reward_message', sanitize_text_field( $reward_message ) );
+	}
+
 	// Handle featured image.
 	if ( ! empty( $imagen ) ) {
 		city_set_featured_image( $poi_id, $imagen );
+	}
+
+	// Handle reward image (Imagen recompensa) — saved as attachment ID in city_poi_quiz_correct_img meta.
+	if ( ! empty( $imagen_recompensa ) ) {
+		$reward_image_id = city_get_image_id_by_url( $imagen_recompensa );
+		if ( ! $reward_image_id ) {
+			$reward_image_id = media_sideload_image( $imagen_recompensa, $poi_id, null, 'id' );
+		}
+		if ( ! is_wp_error( $reward_image_id ) && ! empty( $reward_image_id ) ) {
+			update_post_meta( $poi_id, 'city_poi_quiz_correct_img', (int) $reward_image_id );
+		}
 	}
 
 	$action = $is_update ? 'Updated' : 'Created';
@@ -447,4 +612,142 @@ function city_get_image_id_by_url( $url ) {
 	) );
 
 	return ! empty( $attachment ) ? (int) $attachment[0] : false;
+}
+
+/**
+ * Pre-pass validation: detect inconsistent or near-duplicate values in the
+ * Ciudad / Categoria columns before importing.
+ *
+ * Catches two scenarios:
+ *   1. "Exact variants" — same normalized slug but different raw values
+ *      (e.g. "Cádiz" vs "cadiz"). Likely intended to be the same term.
+ *   2. "Typos" — different normalized slugs with Levenshtein distance <= 2
+ *      and both at least 4 characters long (e.g. "Restaurante" vs "Restaurnte").
+ *
+ * Returns an array with an `errors` key listing human-readable messages.
+ * Empty array means the data is consistent.
+ *
+ * @since 0.8
+ *
+ * @param array $rows Parsed CSV rows (first row is the header).
+ * @param array $col  Column index map (slug → index).
+ * @return array { 'errors' => string[] }
+ */
+function city_validate_sheet_consistency( $rows, $col ) {
+	$errors = array();
+
+	$ciudad_idx    = isset( $col['ciudad'] ) ? (int) $col['ciudad'] : -1;
+	$categoria_idx = isset( $col['categoria'] ) ? (int) $col['categoria'] : -1;
+
+	$city_groups     = array();
+	$category_groups = array();
+
+	// $rows comes from the caller without the header row (already shifted).
+	foreach ( $rows as $row ) {
+		if ( $ciudad_idx >= 0 && isset( $row[ $ciudad_idx ] ) ) {
+			$raw = trim( $row[ $ciudad_idx ] );
+			if ( '' !== $raw ) {
+				$slug = sanitize_title( remove_accents( $raw ) );
+				if ( $slug ) {
+					$city_groups[ $slug ][] = $raw;
+				}
+			}
+		}
+
+		if ( $categoria_idx >= 0 && isset( $row[ $categoria_idx ] ) ) {
+			$raw = trim( $row[ $categoria_idx ] );
+			if ( '' !== $raw ) {
+				$slug = sanitize_title( remove_accents( $raw ) );
+				if ( $slug ) {
+					$category_groups[ $slug ][] = $raw;
+				}
+			}
+		}
+	}
+
+	$check_groups = function ( $groups, $label ) use ( &$errors ) {
+		// 1. Exact variants: same slug, different raw values.
+		foreach ( $groups as $slug => $raws ) {
+			$unique = array_values( array_unique( $raws ) );
+			if ( count( $unique ) > 1 ) {
+				$errors[] = sprintf(
+					/* translators: 1: column label (Ciudad/Categoria), 2: comma-separated list of variants */
+					__( '%1$s: "%2$s" se escriben de forma distinta pero apuntan al mismo termino. Unifica la escritura (mayusculas, acentos) en todas las filas.', 'city-core' ),
+					$label,
+					implode( '", "', $unique )
+				);
+			}
+		}
+
+		// 2. Typos: different slugs with small Levenshtein distance.
+		$slugs = array_keys( $groups );
+		$count = count( $slugs );
+		for ( $i = 0; $i < $count; $i++ ) {
+			for ( $j = $i + 1; $j < $count; $j++ ) {
+				$a = $slugs[ $i ];
+				$b = $slugs[ $j ];
+				$shorter = min( strlen( $a ), strlen( $b ) );
+				if ( $shorter < 4 ) {
+					continue;
+				}
+				$dist = levenshtein( $a, $b );
+				if ( $dist > 0 && $dist <= 2 ) {
+					// Pick one representative raw value per slug for the message.
+					$a_raw = $groups[ $a ][0];
+					$b_raw = $groups[ $b ][0];
+					$errors[] = sprintf(
+						/* translators: 1: column label, 2: value A, 3: value B */
+						__( '%1$s: "%2$s" y "%3$s" parecen variantes con un posible error tipografico. Revisa la escritura.', 'city-core' ),
+						$label,
+						$a_raw,
+						$b_raw
+					);
+				}
+			}
+		}
+	};
+
+	$check_groups( $city_groups, __( 'Ciudad', 'city-core' ) );
+	$check_groups( $category_groups, __( 'Categoria', 'city-core' ) );
+
+	return array( 'errors' => $errors );
+}
+
+/**
+ * Ensure there is a `map` CPT post for the given city slug. Creates one with
+ * the city-core/map block as initial content if it doesn't exist yet.
+ *
+ * @since 0.8
+ *
+ * @param string $slug  City slug (post_name for the map).
+ * @param string $title Raw city name (post_title).
+ * @return int|false Map post ID, or false on failure / if it already existed.
+ */
+function city_ensure_map_for_city( $slug, $title ) {
+	$slug = sanitize_title( $slug );
+	if ( '' === $slug ) {
+		return false;
+	}
+
+	$existing = get_posts( array(
+		'post_type'   => 'map',
+		'name'        => $slug,
+		'numberposts' => 1,
+		'post_status' => 'any',
+		'fields'      => 'ids',
+	) );
+
+	if ( ! empty( $existing ) ) {
+		return false; // Already exists, nothing to do.
+	}
+
+	$post_id = wp_insert_post( array(
+		'post_type'    => 'map',
+		'post_status'  => 'publish',
+		'post_name'    => $slug,
+		'post_title'   => $title ? $title : $slug,
+		'post_content' => '<!-- wp:city-core/map /-->',
+	) );
+
+	return is_wp_error( $post_id ) ? false : (int) $post_id;
 }

@@ -149,6 +149,10 @@ function completedIcon( color ) {
 }
 
 // ── Map initialisation ─────────────────────────────────────────────────────
+// Note: the click listener for `.city-categories a` lives in the global script
+// `assets/js/city-category-filter.js` (enqueued in every frontend page so it
+// works even when this map block is not present). When the map is ready we
+// publish `window.cityCoreMapFilter` so the global listener can invoke it.
 
 async function initCityMap() {
 	// ── Read config from inline JSON ──────────────────────────────────────────
@@ -166,11 +170,13 @@ async function initCityMap() {
 		return;
 	}
 
-	const citySlug  = config.citySlug    || '';
-	const poisData = config.pois         || [];
-	const i18n     = config.i18n         || {};
-	const viewMore  = i18n.viewMore      || 'View more';
-	const lockedMsg = i18n.lockedMsg     || 'Get closer to unlock this point of interest.';
+	const citySlug          = config.citySlug    || '';
+	const poisData          = config.pois         || [];
+	const i18n              = config.i18n         || {};
+	const lockedUseCategory = !! config.lockedUseCategory;
+	const viewMore     = i18n.viewMore     || 'View more';
+	const lockedMsg    = i18n.lockedMsg    || 'Get closer to unlock this point of interest.';
+	const noResultsMsg = i18n.noResultsMsg || 'No hay ningún punto de esa categoría en esta ciudad';
 
 	// ── Wait for Leaflet to be available ─────────────────────────────────────
 	if ( typeof L === 'undefined' ) {
@@ -211,7 +217,7 @@ async function initCityMap() {
 		if ( isUnlocked ) {
 			return unlockedIcon( poi.color, poi.categorySvg );
 		}
-		return lockedIcon( poi.color );
+		return lockedIcon( lockedUseCategory ? poi.color : '' );
 	}
 
 	function unlockedPopup( poi ) {
@@ -223,7 +229,6 @@ async function initCityMap() {
 
 	function lockedPopup( poi ) {
 		return `<div class="city-popup city-popup--locked"><div class="city-popup-inner">
-			<div class="city-poi-marker city-poi-marker--locked city-poi-marker--inline">${ LOCK_SVG }</div>
 			<div class="city-popup-title">${ escapeHtml( poi.name ) }</div>
 			<p class="city-popup-locked-msg">${ escapeHtml( lockedMsg ) }</p>
 		</div></div>`;
@@ -231,7 +236,6 @@ async function initCityMap() {
 
 	function completedPopup( poi ) {
 		return `<div class="city-popup city-popup--completed"><div class="city-popup-inner">
-			<div class="city-poi-marker city-poi-marker--completed city-poi-marker--inline">${ COMPLETED_SVG }</div>
 			<div class="city-popup-title">${ escapeHtml( poi.name ) }</div>
 			<p class="city-popup-completed-msg">Completed!</p>
 			<a class="city-popup-link" href="${ escapeHtml( poi.url ) }">${ escapeHtml( viewMore ) }</a>
@@ -250,10 +254,21 @@ async function initCityMap() {
 
 	// ── Create markers ─────────────────────────────────────────────────────
 	const markers = {};
+	let completedChanged = false;
 
 	for ( const poi of poisData ) {
+		// Completed is true if either localStorage OR server-side meta say so.
+		// This ensures completed POIs always show as completed on the map,
+		// even from a fresh browser/device where localStorage is empty.
+		const isCompleted = !! poi.completed || completedSlugs.has( poi.slug );
+
+		// Sync localStorage with server state when server says completed but localStorage doesn't.
+		if ( isCompleted && ! completedSlugs.has( poi.slug ) ) {
+			completedSlugs.add( poi.slug );
+			completedChanged = true;
+		}
+
 		const isUnlocked  = unlockedSlugs.has( poi.slug );
-		const isCompleted = completedSlugs.has( poi.slug );
 		const marker      = L.marker(
 			[ poi.lat, poi.lng ],
 			{ icon: getMarkerIcon( poi, isUnlocked, isCompleted ) }
@@ -269,6 +284,11 @@ async function initCityMap() {
 		if ( deepPoi && poi.slug === deepPoi && ( isUnlocked || isCompleted ) ) {
 			marker.openPopup();
 		}
+	}
+
+	// Persist localStorage if we added server-side completions.
+	if ( completedChanged ) {
+		saveCompleted( citySlug, completedSlugs );
 	}
 
 	// ── Fit all markers ──────────────────────────────────────────────────────
@@ -295,7 +315,7 @@ async function initCityMap() {
 	const noResultsModal = document.createElement( 'div' );
 	noResultsModal.id = 'city-no-results-modal';
 	noResultsModal.style.cssText = 'display:none; position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); z-index:2000;';
-	noResultsModal.innerHTML = '<div class="city-popup" style="max-width:260px;"><div class="city-popup-inner" style="padding:16px 20px; text-align:center;"><p style="margin:0; font-size:14px; font-weight:700; color:#555;">No hay ningún punto de esa categoría en esta ciudad</p></div></div>';
+	noResultsModal.innerHTML = `<div class="city-popup"><div class="city-popup-inner"><p class="city-popup-locked-msg">${ escapeHtml( noResultsMsg ) }</p></div></div>`;
 	const mapWrapper = document.getElementById( 'city-map-wrapper' );
 	if ( mapWrapper ) {
 		mapWrapper.appendChild( noResultsModal );
@@ -359,19 +379,10 @@ async function initCityMap() {
 		} );
 	}
 
-	// Listen for clicks on category links within .city-categories.
-	document.addEventListener( 'click', function( e ) {
-		const link = e.target.closest( '.city-categories a' );
-		if ( ! link ) return;
-
-		const href = link.getAttribute( 'href' ) || '';
-		const match = href.match( /\/poi-category\/([^\/]+)\/?/ );
-		if ( ! match ) return;
-
-		e.preventDefault();
-		const categorySlug = match[ 1 ];
-		filterMarkersByCategory( categorySlug );
-	} );
+	// Expose the filter globally so the standalone click handler in
+	// assets/js/city-category-filter.js can intercept .city-categories clicks
+	// and apply the filter without page navigation.
+	window.cityCoreMapFilter = filterMarkersByCategory;
 
 	// Apply category from URL on load.
 	const urlParams = new URL( window.location.href ).searchParams;
@@ -405,7 +416,7 @@ async function initCityMap() {
 					unlockedSlugs.delete( slug );
 					anyChange = true;
 
-					item.marker.setIcon( lockedIcon( item.poi.color ) );
+					item.marker.setIcon( lockedIcon( lockedUseCategory ? item.poi.color : '' ) );
 					item.marker.setPopupContent( lockedPopup( item.poi ) );
 					item.marker.closePopup();
 				}

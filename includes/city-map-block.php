@@ -61,6 +61,7 @@ function city_map_block_render( $attributes, $content, $block ) {
 		return '';
 	}
 
+	$map_colors    = city_get_map_colors();
 	$city_slug     = $post->post_name;
 	$unlock_radius = isset( $attributes['unlockRadius'] ) ? (int) $attributes['unlockRadius'] : 50;
 
@@ -152,6 +153,7 @@ function city_map_block_render( $attributes, $content, $block ) {
 				'categorySvg'   => $category_svg,
 				'categorySlug'  => $category_slug,
 				'tolerance'     => (int) $tolerance_meters,
+				'completed'     => (bool) get_post_meta( $poi_id, 'city_poi_completed', true ),
 			);
 		}
 		wp_reset_postdata();
@@ -159,14 +161,16 @@ function city_map_block_render( $attributes, $content, $block ) {
 
 	// ── Prepare data for the frontend ───────────────────────────────────────
 	$map_data = array(
-		'citySlug'     => $city_slug,
-		'pois'         => $pois,
-		'unlockRadius' => $unlock_radius,
-		'i18n'         => array(
+		'citySlug'          => $city_slug,
+		'pois'              => $pois,
+		'unlockRadius'      => $unlock_radius,
+		'lockedUseCategory' => (bool) get_option( 'city_map_locked_use_category', false ),
+		'i18n'              => array(
 			'updatePosition' => __( 'Update position', 'city-core' ),
 			'viewMore'       => __( 'View more', 'city-core' ),
 			'lockedMsg'      => __( 'Get closer to unlock this point of interest.', 'city-core' ),
 			'completedMsg'   => __( 'Completed!', 'city-core' ),
+			'noResultsMsg'   => __( 'No hay ningún punto de esa categoría en esta ciudad', 'city-core' ),
 		),
 	);
 
@@ -210,44 +214,47 @@ function city_map_block_render( $attributes, $content, $block ) {
 
 /* Button */
 .city-map-button{position:absolute;left:50%;bottom:20vh;transform:translateX(-50%);z-index:3000;display:flex;flex-direction:column;align-items:center;}
-#city-center-user-btn{display:inline-flex;align-items:center;gap:8px;white-space:nowrap;background:rgba(255,255,255,.95);color:#063b2f;border-radius:999px;border:2px solid #00624D;box-shadow:0 12px 24px rgba(0,0,0,.25);backdrop-filter:blur(8px);padding:12px 18px;font-weight:400;font-family:var(--wp--preset--font-family--system-font);font-size:inherit;text-decoration:none;transition:transform .12s ease,box-shadow .12s ease;}
+#city-center-user-btn{display:inline-flex;align-items:center;gap:8px;white-space:nowrap;background:<?php echo esc_attr( city_hex_to_rgba( $map_colors['button_bg'], 0.95 ) ); ?>;color:<?php echo esc_attr( $map_colors['button_text'] ); ?>;border-radius:999px;border:2px solid <?php echo esc_attr( $map_colors['button'] ); ?>;box-shadow:0 12px 24px rgba(0,0,0,.25);backdrop-filter:blur(8px);padding:12px 18px;font-weight:400;font-family:var(--wp--preset--font-family--system-font);font-size:inherit;text-decoration:none;transition:transform .12s ease,box-shadow .12s ease;}
 #city-center-user-btn:active,#city-center-user-btn.tap{transform:scale(.96);box-shadow:0 6px 14px rgba(0,0,0,.22);}
 
 /* POI markers */
 .city-poi-marker{display:flex;align-items:center;justify-content:center;width:36px;height:44px;font-size:36px;filter:drop-shadow(0 2px 6px rgba(0,0,0,.35));transition:transform .15s ease,opacity .25s ease;cursor:pointer;}
 .city-poi-marker svg{width:1em;height:1em;}
-.city-poi-marker--locked{color:#888;}
+.city-poi-marker--locked{color:<?php echo esc_attr( $map_colors['locked'] ); ?>;}
 .city-poi-marker--unlocked{color:#00624D;}
 .city-poi-marker--completed{color:#e07722;}
 .city-poi-marker:hover{transform:scale(1.12);}
 .city-poi-marker--inline{width:28px;height:28px;font-size:28px;margin:0 auto 6px;filter:none;}
 
 /* Category filter active state */
-.city-categories a.city-category-active{color:#e07722;font-weight:700;}
+.city-categories a.city-category-active{color:<?php echo esc_attr( $map_colors['category_active'] ); ?>;font-weight:700;}
 
-/* No results modal */
+/* No results modal — uses popup colors and Figma style */
 #city-no-results-modal{pointer-events:none;}
-#city-no-results-modal .city-popup-inner{background:#fff;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.18);}
+#city-no-results-modal .city-popup-inner{background:<?php echo esc_attr( $map_colors['popup_bg'] ); ?>;border:2px solid <?php echo esc_attr( $map_colors['popup_border'] ); ?>;color:<?php echo esc_attr( $map_colors['popup_text'] ); ?>;box-shadow:none;font-family:var(--wp--preset--font-family--monospace, ui-monospace, "JetBrains Mono", "Courier New", monospace);}
 
 /* User location */
 .city-user-icon{position:relative;width:26px;height:26px;}
-.city-user-wave{position:absolute;top:50%;left:50%;width:26px;height:26px;border-radius:50%;background:rgba(0,98,77,.22);transform:translate(-50%,-50%) scale(1);z-index:1;animation:cityWave 2.8s ease-out infinite;}
+.city-user-wave{position:absolute;top:50%;left:50%;width:26px;height:26px;border-radius:50%;background:<?php echo esc_attr( city_hex_to_rgba( $map_colors['button'], 0.22 ) ); ?>;transform:translate(-50%,-50%) scale(1);z-index:1;animation:cityWave 2.8s ease-out infinite;}
 .city-user-wave.delay{animation-delay:1.4s;}
 @keyframes cityWave{0%{transform:translate(-50%,-50%) scale(1);opacity:.55;}70%{opacity:.15;}100%{transform:translate(-50%,-50%) scale(3);opacity:0;}}
-.city-user-dot{width:26px;height:26px;border-radius:50%;background:rgba(255,255,255,.95);border:2px solid #00624D;box-shadow:0 4px 10px rgba(0,0,0,.25);display:flex;align-items:center;justify-content:center;position:relative;z-index:3;}
+.city-user-dot{width:26px;height:26px;border-radius:50%;background:<?php echo esc_attr( city_hex_to_rgba( $map_colors['indicator_bg'], 0.95 ) ); ?>;border:2px solid <?php echo esc_attr( $map_colors['button'] ); ?>;box-shadow:0 4px 10px rgba(0,0,0,.25);display:flex;align-items:center;justify-content:center;position:relative;z-index:3;}
 .city-user-dot svg{width:14px;height:14px;fill:#222;}
 
-/* Popups */
-.city-popup{max-width:220px;}
-.city-popup-inner{padding:8px 10px 10px;text-align:center;}
-.city-popup-title{font-family:var(--wp--preset--font-family--system-font);font-weight:700;font-size:14px;line-height:1.2;color:#063b2f;margin:0 0 4px;}
-.city-popup-link{display:block;font-size:12px;color:#00624D;text-decoration:underline;}
-.city-popup--locked .city-popup-title{color:#555;}
-.city-popup-locked-msg{font-size:11px;color:#888;margin:4px 0 0;}
-.city-popup--completed .city-popup-title{color:#e07722;}
-.city-popup-completed-msg{font-size:11px;color:#e07722;margin:4px 0 0;}
-#city-map .leaflet-popup-content{margin:0;}
-#city-map .leaflet-popup-content-wrapper{padding:6px 8px;}
+/* Popups — Figma-style: sharp corners, configurable border/bg/text, monospace */
+#city-map .leaflet-popup-content-wrapper{background:<?php echo esc_attr( $map_colors['popup_bg'] ); ?>;border:2px solid <?php echo esc_attr( $map_colors['popup_border'] ); ?>;border-radius:0;box-shadow:none;padding:0;}
+#city-map .leaflet-popup-content{margin:0;font-family:var(--wp--preset--font-family--monospace, ui-monospace, "JetBrains Mono", "Courier New", monospace);line-height:1.4;}
+#city-map .leaflet-popup-tip{background:<?php echo esc_attr( $map_colors['popup_bg'] ); ?>;border:2px solid <?php echo esc_attr( $map_colors['popup_border'] ); ?>;box-shadow:none;}
+#city-map .leaflet-popup-tip-container{margin-top:-2px;}
+#city-map .leaflet-popup-close-button{color:<?php echo esc_attr( $map_colors['popup_text'] ); ?>;}
+
+.city-popup{max-width:240px;}
+.city-popup-inner{padding:14px 18px 12px;text-align:center;}
+.city-popup-title{font-family:inherit;font-weight:700;font-size:14px;line-height:1.2;color:<?php echo esc_attr( $map_colors['popup_text'] ); ?>;margin:0 0 8px;text-transform:uppercase;letter-spacing:0.02em;}
+.city-popup-link{display:inline-block;font-size:12px;color:<?php echo esc_attr( $map_colors['popup_text'] ); ?>;text-decoration:underline;margin-top:8px;}
+.city-popup-locked-msg,
+.city-popup-completed-msg{font-family:inherit;font-size:12px;color:<?php echo esc_attr( $map_colors['popup_text'] ); ?>;margin:0;line-height:1.4;}
+.city-popup--completed .city-popup-title{color:<?php echo esc_attr( $map_colors['category_active'] ); ?>;}
 	</style>
 	<?php
 	return ob_get_clean();

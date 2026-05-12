@@ -88,6 +88,12 @@ function city_enqueue_poi_category_admin_assets( $hook ) {
 	}
 
 	wp_enqueue_style( 'wp-color-picker' );
+	wp_enqueue_style(
+		'city-color-picker-style',
+		CITY_CORE_URL . 'assets/css/city-color-picker.css',
+		array( 'wp-color-picker' ),
+		CITY_CORE_VERSION
+	);
 	wp_enqueue_script(
 		'city-poi-category-admin',
 		CITY_CORE_URL . 'assets/js/poi-category-admin.js',
@@ -95,6 +101,10 @@ function city_enqueue_poi_category_admin_assets( $hook ) {
 		CITY_CORE_VERSION,
 		true
 	);
+
+	wp_localize_script( 'city-poi-category-admin', 'cityPoiCategoryAdmin', array(
+		'themePalette' => function_exists( 'city_get_theme_palette' ) ? city_get_theme_palette() : array(),
+	) );
 }
 add_action( 'admin_enqueue_scripts', 'city_enqueue_poi_category_admin_assets' );
 
@@ -219,3 +229,72 @@ function city_save_poi_category_meta( $term_id ) {
 }
 add_action( 'created_poi-category', 'city_save_poi_category_meta' );
 add_action( 'edited_poi-category',  'city_save_poi_category_meta' );
+
+// -------------------------------------------------------------------------
+// Inject category SVG icons into the core/categories block
+// -------------------------------------------------------------------------
+
+/**
+ * Inject the term's SVG icon inside each <a> of a core/categories block
+ * when the block is configured for the poi-category taxonomy.
+ *
+ * @since 0.8
+ *
+ * @param string $block_content Block HTML.
+ * @param array  $block         Parsed block data.
+ * @return string Modified HTML.
+ */
+function city_inject_poi_category_icons( $block_content, $block ) {
+	$taxonomy = isset( $block['attrs']['taxonomy'] ) ? $block['attrs']['taxonomy'] : 'category';
+	if ( 'poi-category' !== $taxonomy ) {
+		return $block_content;
+	}
+
+	return preg_replace_callback(
+		'/(<li[^>]*class="[^"]*cat-item-(\d+)[^"]*"[^>]*>\s*<a[^>]*>)(.*?)(<\/a>)/s',
+		function ( $matches ) {
+			$term_id = (int) $matches[2];
+			$svg     = get_term_meta( $term_id, 'city_poi_category_svg', true );
+			if ( empty( $svg ) ) {
+				return $matches[0];
+			}
+			// Force fill="currentColor" so the SVG inherits the span color.
+			$svg = preg_replace( '/\sfill="[^"]*"/i', ' fill="currentColor"', $svg );
+			// Also normalize fill defined inline via style="fill:#xxx".
+			$svg = preg_replace( '/fill\s*:\s*[^;"\']+/i', 'fill:currentColor', $svg );
+
+			$color = get_term_meta( $term_id, 'city_poi_category_color', true );
+			$style = $color ? ' style="color:' . esc_attr( $color ) . '"' : '';
+			return $matches[1] . '<span class="city-category-icon"' . $style . '>' . $svg . '</span>' . $matches[3] . $matches[4];
+		},
+		$block_content
+	);
+}
+add_filter( 'render_block_core/categories', 'city_inject_poi_category_icons', 10, 2 );
+
+/**
+ * Frontend CSS for the inline category SVG icons.
+ *
+ * @since 0.8
+ */
+function city_poi_category_icons_css() {
+	?>
+	<style>
+		.city-categories .city-category-icon {
+			display: inline-flex;
+			align-items: center;
+			justify-content: center;
+			width: 1em;
+			height: 1em;
+			margin-right: 6px;
+			vertical-align: -0.125em;
+		}
+		.city-categories .city-category-icon svg {
+			width: 100%;
+			height: 100%;
+			fill: currentColor;
+		}
+	</style>
+	<?php
+}
+add_action( 'wp_head', 'city_poi_category_icons_css' );

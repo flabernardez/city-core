@@ -109,6 +109,23 @@ function city_back_process_buffer( $html ) {
 
 	$back_page_id = get_post_meta( $post_id, '_city_back_page_id', true );
 
+	// For POIs: automatically resolve to the city's map.
+	if ( get_post_type( $post_id ) === 'poi' ) {
+		$city_terms = get_the_terms( $post_id, 'city' );
+		if ( $city_terms && ! is_wp_error( $city_terms ) ) {
+			$city_slug = $city_terms[0]->slug;
+			$map_posts = get_posts( array(
+				'post_type'   => 'map',
+				'name'        => $city_slug,
+				'numberposts' => 1,
+				'post_status' => 'publish',
+			) );
+			if ( ! empty( $map_posts ) ) {
+				$back_page_id = $map_posts[0]->ID;
+			}
+		}
+	}
+
 	if ( empty( $back_page_id ) ) {
 		return $html;
 	}

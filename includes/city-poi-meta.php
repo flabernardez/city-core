@@ -143,6 +143,41 @@ function city_register_poi_meta() {
 		},
 	) );
 
+	// Reward message shown when quiz is answered correctly.
+	register_post_meta( 'poi', 'city_poi_reward_message', array(
+		'type'              => 'string',
+		'single'            => true,
+		'show_in_rest'      => true,
+		'sanitize_callback' => 'sanitize_text_field',
+		'auth_callback'     => function () {
+			return current_user_can( 'edit_posts' );
+		},
+	) );
+
+	// Completed image (attachment ID shown as quiz reward).
+	register_post_meta( 'poi', 'city_poi_quiz_correct_img', array(
+		'type'              => 'integer',
+		'single'            => true,
+		'show_in_rest'      => true,
+		'sanitize_callback' => 'absint',
+		'auth_callback'     => function () {
+			return current_user_can( 'edit_posts' );
+		},
+	) );
+
+	// Auxiliary: URL of the attachment above, kept in sync automatically.
+	// Useful for dynamic-field blocks (e.g. Stackable Image) that expect a URL
+	// rather than an attachment ID.
+	register_post_meta( 'poi', 'city_poi_quiz_correct_img_url', array(
+		'type'              => 'string',
+		'single'            => true,
+		'show_in_rest'      => true,
+		'sanitize_callback' => 'esc_url_raw',
+		'auth_callback'     => function () {
+			return current_user_can( 'edit_posts' );
+		},
+	) );
+
 	// Completion and favorite state (saved server-side when quiz answered or favorite toggled).
 	register_post_meta( 'poi', 'city_poi_completed', array(
 		'type'              => 'integer',
@@ -315,12 +350,13 @@ function city_poi_coordinates_metabox_callback( $post ) {
 function city_poi_quiz_metabox_callback( $post ) {
 	wp_nonce_field( 'city_poi_save_quiz', 'city_poi_quiz_nonce' );
 
-	$hint      = get_post_meta( $post->ID, 'city_poi_hint', true );
-	$question  = get_post_meta( $post->ID, 'city_poi_quiz_question', true );
-	$answer1   = get_post_meta( $post->ID, 'city_poi_quiz_answer_1', true );
-	$answer2   = get_post_meta( $post->ID, 'city_poi_quiz_answer_2', true );
-	$answer3   = get_post_meta( $post->ID, 'city_poi_quiz_answer_3', true );
-	$correct   = (int) get_post_meta( $post->ID, 'city_poi_quiz_correct', true );
+	$hint           = get_post_meta( $post->ID, 'city_poi_hint', true );
+	$question       = get_post_meta( $post->ID, 'city_poi_quiz_question', true );
+	$answer1        = get_post_meta( $post->ID, 'city_poi_quiz_answer_1', true );
+	$answer2        = get_post_meta( $post->ID, 'city_poi_quiz_answer_2', true );
+	$answer3        = get_post_meta( $post->ID, 'city_poi_quiz_answer_3', true );
+	$correct        = (int) get_post_meta( $post->ID, 'city_poi_quiz_correct', true );
+	$reward_message = get_post_meta( $post->ID, 'city_poi_reward_message', true );
 
 	echo '<table class="form-table">';
 
@@ -365,6 +401,36 @@ function city_poi_quiz_metabox_callback( $post ) {
 	echo '<td>';
 	echo '<input type="text" id="city_poi_quiz_answer_3" name="city_poi_quiz_answer_3" value="' . esc_attr( $answer3 ) . '" style="width: 100%;" />';
 	echo ' <label><input type="radio" name="city_poi_quiz_correct" value="3" ' . checked( $correct, 3, false ) . ' /> ' . esc_html__( 'Correct', 'city-core' ) . '</label>';
+	echo '</td>';
+	echo '</tr>';
+
+	// Reward message.
+	echo '<tr>';
+	echo '<th scope="row"><label for="city_poi_reward_message">' . esc_html__( 'Reward Message', 'city-core' ) . '</label></th>';
+	echo '<td>';
+	echo '<input type="text" id="city_poi_reward_message" name="city_poi_reward_message" value="' . esc_attr( $reward_message ) . '" style="width: 100%;" placeholder="' . esc_attr__( 'Correct! POI marked as completed.', 'city-core' ) . '" />';
+	echo '<p class="description">' . esc_html__( 'Custom message shown when the quiz is answered correctly. Leave empty for default.', 'city-core' ) . '</p>';
+	echo '</td>';
+	echo '</tr>';
+
+	// Reward image (attachment ID shown when quiz answered correctly).
+	$reward_image_id  = (int) get_post_meta( $post->ID, 'city_poi_quiz_correct_img', true );
+	$reward_image_url = $reward_image_id ? wp_get_attachment_image_url( $reward_image_id, 'medium' ) : '';
+
+	echo '<tr>';
+	echo '<th scope="row"><label>' . esc_html__( 'Reward Image', 'city-core' ) . '</label></th>';
+	echo '<td>';
+	echo '<div class="city-poi-image-picker" data-target="city_poi_quiz_correct_img">';
+	echo '<div class="city-poi-image-preview" style="margin-bottom:8px;">';
+	if ( $reward_image_url ) {
+		echo '<img src="' . esc_url( $reward_image_url ) . '" style="max-width:200px;height:auto;display:block;" />';
+	}
+	echo '</div>';
+	echo '<input type="hidden" name="city_poi_quiz_correct_img" id="city_poi_quiz_correct_img" value="' . esc_attr( $reward_image_id ) . '" />';
+	echo '<button type="button" class="button city-poi-image-select">' . esc_html( $reward_image_id ? __( 'Change image', 'city-core' ) : __( 'Select image', 'city-core' ) ) . '</button> ';
+	echo '<button type="button" class="button-link city-poi-image-remove" style="color:#a00;' . ( $reward_image_id ? '' : 'display:none;' ) . '">' . esc_html__( 'Remove', 'city-core' ) . '</button>';
+	echo '<p class="description">' . esc_html__( 'Optional. Image shown when the quiz is answered correctly. Maps to the Google Sheet column "Imagen recompensa".', 'city-core' ) . '</p>';
+	echo '</div>';
 	echo '</td>';
 	echo '</tr>';
 
@@ -472,5 +538,150 @@ function city_save_poi_quiz( $post_id ) {
 	update_post_meta( $post_id, 'city_poi_quiz_answer_2', $answer2 );
 	update_post_meta( $post_id, 'city_poi_quiz_answer_3', $answer3 );
 	update_post_meta( $post_id, 'city_poi_quiz_correct', $correct );
+
+	$reward_message = isset( $_POST['city_poi_reward_message'] ) ? sanitize_text_field( $_POST['city_poi_reward_message'] ) : '';
+	update_post_meta( $post_id, 'city_poi_reward_message', $reward_message );
+
+	$reward_image_id = isset( $_POST['city_poi_quiz_correct_img'] ) ? absint( $_POST['city_poi_quiz_correct_img'] ) : 0;
+	update_post_meta( $post_id, 'city_poi_quiz_correct_img', $reward_image_id );
 }
 add_action( 'save_post_poi', 'city_save_poi_quiz' );
+
+/**
+ * Enqueue WP Media + a small inline script on the POI edit screen so the
+ * classic Quiz metabox can open the Media Library and pick an image.
+ *
+ * @since 0.8
+ *
+ * @param string $hook Current admin page hook.
+ */
+function city_enqueue_poi_admin_assets( $hook ) {
+	if ( ! in_array( $hook, array( 'post.php', 'post-new.php' ), true ) ) {
+		return;
+	}
+	$screen = get_current_screen();
+	if ( ! $screen || 'poi' !== $screen->post_type ) {
+		return;
+	}
+
+	wp_enqueue_media();
+
+	$script = <<<JS
+( function ( \$ ) {
+	\$( document ).on( 'click', '.city-poi-image-select', function ( e ) {
+		e.preventDefault();
+		var wrapper = \$( this ).closest( '.city-poi-image-picker' );
+		var input   = wrapper.find( 'input[type="hidden"]' );
+		var preview = wrapper.find( '.city-poi-image-preview' );
+		var remove  = wrapper.find( '.city-poi-image-remove' );
+		var frame = wp.media( {
+			title: 'Select image',
+			library: { type: 'image' },
+			multiple: false,
+		} );
+		frame.on( 'select', function () {
+			var att = frame.state().get( 'selection' ).first().toJSON();
+			input.val( att.id );
+			preview.html( '<img src="' + att.url + '" style="max-width:200px;height:auto;display:block;" />' );
+			remove.show();
+			wrapper.find( '.city-poi-image-select' ).text( 'Change image' );
+		} );
+		frame.open();
+	} );
+	\$( document ).on( 'click', '.city-poi-image-remove', function ( e ) {
+		e.preventDefault();
+		var wrapper = \$( this ).closest( '.city-poi-image-picker' );
+		wrapper.find( 'input[type="hidden"]' ).val( '' );
+		wrapper.find( '.city-poi-image-preview' ).empty();
+		\$( this ).hide();
+		wrapper.find( '.city-poi-image-select' ).text( 'Select image' );
+	} );
+} )( jQuery );
+JS;
+
+	wp_add_inline_script( 'media-editor', $script );
+}
+add_action( 'admin_enqueue_scripts', 'city_enqueue_poi_admin_assets' );
+
+/**
+ * Keep `city_poi_quiz_correct_img_url` in sync with `city_poi_quiz_correct_img`.
+ *
+ * Whenever the attachment ID is added or updated (from any vector: classic
+ * metabox, Gutenberg sidebar, sheets importer, REST API, WP-CLI...), derive
+ * the URL via wp_get_attachment_url() and store it in the auxiliary meta so
+ * blocks/dynamic fields that expect a URL (e.g. Stackable Image) work out
+ * of the box.
+ *
+ * @since 0.8
+ *
+ * @param int    $meta_id    Meta row ID (unused).
+ * @param int    $post_id    Post ID.
+ * @param string $meta_key   Meta key being updated.
+ * @param mixed  $meta_value New meta value (attachment ID).
+ */
+function city_sync_quiz_correct_img_url( $meta_id, $post_id, $meta_key, $meta_value ) {
+	if ( 'city_poi_quiz_correct_img' !== $meta_key ) {
+		return;
+	}
+	$attachment_id = (int) $meta_value;
+	$url           = $attachment_id ? wp_get_attachment_url( $attachment_id ) : '';
+	update_post_meta( $post_id, 'city_poi_quiz_correct_img_url', $url ? esc_url_raw( $url ) : '' );
+}
+add_action( 'updated_post_meta', 'city_sync_quiz_correct_img_url', 10, 4 );
+add_action( 'added_post_meta',   'city_sync_quiz_correct_img_url', 10, 4 );
+
+/**
+ * Clean up the auxiliary URL meta when the ID meta is deleted.
+ *
+ * @since 0.8
+ *
+ * @param array  $meta_ids Meta IDs being deleted (unused).
+ * @param int    $post_id  Post ID.
+ * @param string $meta_key Meta key being deleted.
+ */
+function city_sync_quiz_correct_img_url_on_delete( $meta_ids, $post_id, $meta_key ) {
+	if ( 'city_poi_quiz_correct_img' !== $meta_key ) {
+		return;
+	}
+	delete_post_meta( $post_id, 'city_poi_quiz_correct_img_url' );
+}
+add_action( 'deleted_post_meta', 'city_sync_quiz_correct_img_url_on_delete', 10, 3 );
+
+/**
+ * One-shot migration: backfill `city_poi_quiz_correct_img_url` for POIs that
+ * already had an attachment ID before the auxiliary meta existed.
+ *
+ * Runs once on the first admin pageview after deploy. Subsequent visits are
+ * a no-op thanks to the `city_quiz_correct_img_url_migrated` option flag.
+ *
+ * @since 0.8
+ */
+function city_migrate_quiz_correct_img_url() {
+	if ( ! is_admin() ) {
+		return;
+	}
+	if ( get_option( 'city_quiz_correct_img_url_migrated' ) ) {
+		return;
+	}
+
+	$pois = get_posts( array(
+		'post_type'   => 'poi',
+		'numberposts' => -1,
+		'meta_key'    => 'city_poi_quiz_correct_img',
+		'fields'      => 'ids',
+	) );
+
+	foreach ( $pois as $poi_id ) {
+		$attachment_id = (int) get_post_meta( $poi_id, 'city_poi_quiz_correct_img', true );
+		if ( ! $attachment_id ) {
+			continue;
+		}
+		$url = wp_get_attachment_url( $attachment_id );
+		if ( $url ) {
+			update_post_meta( $poi_id, 'city_poi_quiz_correct_img_url', esc_url_raw( $url ) );
+		}
+	}
+
+	update_option( 'city_quiz_correct_img_url_migrated', 1 );
+}
+add_action( 'admin_init', 'city_migrate_quiz_correct_img_url' );

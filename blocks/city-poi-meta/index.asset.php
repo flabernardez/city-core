@@ -14,6 +14,7 @@ return array(
 		'wp-components',
 		'wp-data',
 		'wp-i18n',
+		'wp-block-editor',
 	),
-	'version' => '0.2.0',
+	'version' => '0.3.1',
 );
