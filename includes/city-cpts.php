@@ -247,3 +247,38 @@ function city_redirect_old_map_urls() {
 	}
 }
 add_action( 'init', 'city_redirect_old_map_urls', 1 );
+
+/**
+ * Default ordering for POI and Region (map) queries: alphabetical A → Z.
+ *
+ * Applies to frontend archive pages and Query Loop blocks that don't
+ * explicitly set their own orderby. Admin list tables are not affected.
+ *
+ * @since 0.8
+ *
+ * @param WP_Query $query The current query object.
+ */
+function city_default_alphabetical_order( $query ) {
+	if ( is_admin() || ! $query->is_main_query() ) {
+		return;
+	}
+
+	$post_type = $query->get( 'post_type' );
+
+	// Match both single string and array values for post_type.
+	$target_types = array( 'poi', 'map' );
+	$matches      = is_array( $post_type )
+		? array_intersect( $target_types, $post_type )
+		: in_array( $post_type, $target_types, true );
+
+	if ( ! $matches ) {
+		return;
+	}
+
+	// Only override if no explicit orderby has been set.
+	if ( ! $query->get( 'orderby' ) ) {
+		$query->set( 'orderby', 'title' );
+		$query->set( 'order', 'ASC' );
+	}
+}
+add_action( 'pre_get_posts', 'city_default_alphabetical_order' );
