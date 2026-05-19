@@ -179,30 +179,30 @@ add_action( 'init', 'city_register_poi_category_taxonomy' );
  */
 function city_register_map_post_type() {
 	$labels = array(
-		'name'                  => _x( 'Maps', 'post type general name', 'city-core' ),
-		'singular_name'         => _x( 'Map', 'post type singular name', 'city-core' ),
-		'menu_name'             => _x( 'Maps', 'admin menu', 'city-core' ),
-		'name_admin_bar'        => _x( 'Map', 'add new on admin bar', 'city-core' ),
+		'name'                  => _x( 'Regions', 'post type general name', 'city-core' ),
+		'singular_name'         => _x( 'Region', 'post type singular name', 'city-core' ),
+		'menu_name'             => _x( 'Regions', 'admin menu', 'city-core' ),
+		'name_admin_bar'        => _x( 'Region', 'add new on admin bar', 'city-core' ),
 		'add_new'               => __( 'Add New', 'city-core' ),
-		'add_new_item'          => __( 'Add New Map', 'city-core' ),
-		'new_item'              => __( 'New Map', 'city-core' ),
-		'edit_item'             => __( 'Edit Map', 'city-core' ),
-		'view_item'             => __( 'View Map', 'city-core' ),
-		'all_items'             => __( 'All Maps', 'city-core' ),
-		'search_items'          => __( 'Search Maps', 'city-core' ),
-		'parent_item_colon'     => __( 'Parent Map:', 'city-core' ),
-		'not_found'             => __( 'No maps found.', 'city-core' ),
-		'not_found_in_trash'    => __( 'No maps found in Trash.', 'city-core' ),
+		'add_new_item'          => __( 'Add New Region', 'city-core' ),
+		'new_item'              => __( 'New Region', 'city-core' ),
+		'edit_item'             => __( 'Edit Region', 'city-core' ),
+		'view_item'             => __( 'View Region', 'city-core' ),
+		'all_items'             => __( 'All Regions', 'city-core' ),
+		'search_items'          => __( 'Search Regions', 'city-core' ),
+		'parent_item_colon'     => __( 'Parent Region:', 'city-core' ),
+		'not_found'             => __( 'No regions found.', 'city-core' ),
+		'not_found_in_trash'    => __( 'No regions found in Trash.', 'city-core' ),
 		'featured_image'        => __( 'Featured Image', 'city-core' ),
 		'set_featured_image'    => __( 'Set featured image', 'city-core' ),
 		'remove_featured_image' => __( 'Remove featured image', 'city-core' ),
 		'use_featured_image'    => __( 'Use as featured image', 'city-core' ),
-		'archives'              => __( 'Maps Archives', 'city-core' ),
-		'insert_into_item'      => __( 'Insert into map', 'city-core' ),
-		'uploaded_to_this_item' => __( 'Uploaded to this map', 'city-core' ),
-		'items_list'            => __( 'Maps list', 'city-core' ),
-		'items_list_navigation' => __( 'Maps list navigation', 'city-core' ),
-		'filter_items_list'     => __( 'Filter maps list', 'city-core' ),
+		'archives'              => __( 'Regions Archives', 'city-core' ),
+		'insert_into_item'      => __( 'Insert into region', 'city-core' ),
+		'uploaded_to_this_item' => __( 'Uploaded to this region', 'city-core' ),
+		'items_list'            => __( 'Regions list', 'city-core' ),
+		'items_list_navigation' => __( 'Regions list navigation', 'city-core' ),
+		'filter_items_list'     => __( 'Filter regions list', 'city-core' ),
 	);
 
 	$args = array(
@@ -212,9 +212,9 @@ function city_register_map_post_type() {
 		'show_ui'            => true,
 		'show_in_menu'       => true,
 		'query_var'          => true,
-		'rewrite'            => array( 'slug' => 'map' ),
+		'rewrite'            => array( 'slug' => 'region' ),
 		'capability_type'    => 'post',
-		'has_archive'        => true,
+		'has_archive'        => 'regiones',
 		'hierarchical'       => false,
 		'menu_position'      => 6,
 		'menu_icon'          => 'dashicons-admin-site-alt3',
@@ -222,6 +222,28 @@ function city_register_map_post_type() {
 		'show_in_rest'       => true,
 	);
 
+	// Internal post_type key stays 'map' to preserve existing posts in the DB.
 	register_post_type( 'map', $args );
 }
 add_action( 'init', 'city_register_map_post_type' );
+
+/**
+ * Redirect old /map/* URLs to /region/* with HTTP 302 (temporary).
+ *
+ * Runs at init priority 1 (before WP resolves the URL) so old bookmarks
+ * and search-engine entries still work after the slug rename.
+ *
+ * @since 0.8
+ */
+function city_redirect_old_map_urls() {
+	if ( is_admin() ) {
+		return;
+	}
+	$path = trim( parse_url( $_SERVER['REQUEST_URI'], PHP_URL_PATH ), '/' );
+	if ( preg_match( '#^map(/.*)?$#', $path, $m ) ) {
+		$new = '/region' . ( isset( $m[1] ) ? $m[1] : '/' );
+		wp_redirect( home_url( $new ), 302 );
+		exit;
+	}
+}
+add_action( 'init', 'city_redirect_old_map_urls', 1 );

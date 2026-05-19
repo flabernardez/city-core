@@ -47,17 +47,34 @@ function city_ajax_import_pois() {
 		wp_send_json_error( 'Failed to fetch sheet: ' . $response->get_error_message() );
 	}
 
+	$status_code = wp_remote_retrieve_response_code( $response );
+	if ( 200 !== $status_code ) {
+		wp_send_json_error( sprintf(
+			'Google Sheets returned HTTP %d. Make sure the sheet is truly public ("Anyone with the link" → Viewer), not just shared with specific people.',
+			$status_code
+		) );
+	}
+
 	$body = wp_remote_retrieve_body( $response );
 
 	if ( empty( $body ) ) {
 		wp_send_json_error( 'Empty response from Google Sheets' );
 	}
 
+	// Detect HTML login/error page instead of CSV data.
+	$body_trimmed = ltrim( $body );
+	if ( stripos( $body_trimmed, '<!doctype' ) === 0 || stripos( $body_trimmed, '<html' ) === 0 ) {
+		wp_send_json_error(
+			'Google returned an HTML page instead of CSV data. The sheet is likely not public. '
+			. 'Go to Google Sheets → Share → General access → "Anyone with the link" → Viewer, then try again.'
+		);
+	}
+
 	// Parse CSV.
 	$rows = city_parse_csv( $body );
 
 	if ( empty( $rows ) || count( $rows ) < 2 ) {
-		wp_send_json_error( 'No data found in sheet (need header + at least 1 row)' );
+		wp_send_json_error( 'No data found in sheet (need header + at least 1 row). Check that the sheet is public and contains data.' );
 	}
 
 	// Parse header row.
@@ -176,14 +193,31 @@ function city_ajax_preview_pois() {
 		wp_send_json_error( 'Failed to fetch sheet: ' . $response->get_error_message() );
 	}
 
+	$status_code = wp_remote_retrieve_response_code( $response );
+	if ( 200 !== $status_code ) {
+		wp_send_json_error( sprintf(
+			'Google Sheets returned HTTP %d. Make sure the sheet is truly public ("Anyone with the link" → Viewer), not just shared with specific people.',
+			$status_code
+		) );
+	}
+
 	$body = wp_remote_retrieve_body( $response );
 	if ( empty( $body ) ) {
 		wp_send_json_error( 'Empty response from Google Sheets.' );
 	}
 
+	// Detect HTML login/error page instead of CSV data.
+	$body_trimmed = ltrim( $body );
+	if ( stripos( $body_trimmed, '<!doctype' ) === 0 || stripos( $body_trimmed, '<html' ) === 0 ) {
+		wp_send_json_error(
+			'Google returned an HTML page instead of CSV data. The sheet is likely not public. '
+			. 'Go to Google Sheets → Share → General access → "Anyone with the link" → Viewer, then try again.'
+		);
+	}
+
 	$rows = city_parse_csv( $body );
 	if ( empty( $rows ) || count( $rows ) < 2 ) {
-		wp_send_json_error( 'No data found in sheet (need header + at least 1 row).' );
+		wp_send_json_error( 'No data found in sheet (need header + at least 1 row). Check that the sheet is public and contains data.' );
 	}
 
 	// Header parsing (same as import).
@@ -279,11 +313,13 @@ add_action( 'wp_ajax_city_preview_pois', 'city_ajax_preview_pois' );
  * @return string|false CSV URL or false on failure.
  */
 function city_convert_sheets_to_csv( $url ) {
-	// Pattern: https://docs.google.com/spreadsheets/d/{ID}/edit#gid=0
+	// Pattern: https://docs.google.com/spreadsheets/d/{ID}/...
 	if ( preg_match( '/\/spreadsheets\/d\/([a-zA-Z0-9_-]+)/', $url, $matches ) ) {
-		$sheet_id = isset( $matches[1] ) ? $matches[1] : '';
-		// Export as CSV.
-		return "https://docs.google.com/spreadsheets/d/$sheet_id/export?format=csv&gid=0";
+		$sheet_id = $matches[1];
+		// Use the Google Visualization API endpoint which returns CSV directly
+		// (HTTP 200, no redirect) and works with "Anyone with the link" sheets.
+		// The old /export?format=csv endpoint returns 307→400 on many servers.
+		return "https://docs.google.com/spreadsheets/d/$sheet_id/gviz/tq?tqx=out:csv";
 	}
 	return false;
 }
@@ -417,7 +453,7 @@ function city_import_single_poi( $header, $row, $col ) {
 			wp_set_object_terms( $poi_id, (int) $city_term['term_id'], 'city' );
 		}
 
-		// Ensure a `map` CPT post exists for this city so the /map/{slug}/
+		// Ensure a `map` CPT post exists for this city so the /region/{slug}/
 		// page works out of the box when a new city appears in the sheet.
 		city_ensure_map_for_city( $city_slug, $ciudad );
 	}
@@ -457,27 +493,46 @@ function city_import_single_poi( $header, $row, $col ) {
 		update_post_meta( $poi_id, 'city_poi_reward_message', sanitize_text_field( $reward_message ) );
 	}
 
-	// Handle featured image.
+	// Handle images with deduplication by URL and filename + logging.
+	$image_logs = array();
+
+	// Featured image.
 	if ( ! empty( $imagen ) ) {
-		city_set_featured_image( $poi_id, $imagen );
+		$result        = city_find_or_import_image( $imagen, $poi_id );
+		$current_thumb = (int) get_post_thumbnail_id( $poi_id );
+		if ( $result['id'] && $result['id'] !== $current_thumb ) {
+			set_post_thumbnail( $poi_id, $result['id'] );
+			$image_logs[] = 'Featured: ' . $result['log'];
+		} elseif ( $result['id'] && $result['id'] === $current_thumb ) {
+			$image_logs[] = 'Featured: already assigned, skipped';
+		} elseif ( $result['log'] ) {
+			$image_logs[] = 'Featured: ' . $result['log'];
+		}
 	}
 
-	// Handle reward image (Imagen recompensa) — saved as attachment ID in city_poi_quiz_correct_img meta.
+	// Reward image (Imagen recompensa) — saved as attachment ID in city_poi_quiz_correct_img meta.
 	if ( ! empty( $imagen_recompensa ) ) {
-		$reward_image_id = city_get_image_id_by_url( $imagen_recompensa );
-		if ( ! $reward_image_id ) {
-			$reward_image_id = media_sideload_image( $imagen_recompensa, $poi_id, null, 'id' );
-		}
-		if ( ! is_wp_error( $reward_image_id ) && ! empty( $reward_image_id ) ) {
-			update_post_meta( $poi_id, 'city_poi_quiz_correct_img', (int) $reward_image_id );
+		$result         = city_find_or_import_image( $imagen_recompensa, $poi_id );
+		$current_reward = (int) get_post_meta( $poi_id, 'city_poi_quiz_correct_img', true );
+		if ( $result['id'] && $result['id'] !== $current_reward ) {
+			update_post_meta( $poi_id, 'city_poi_quiz_correct_img', (int) $result['id'] );
+			$image_logs[] = 'Reward: ' . $result['log'];
+		} elseif ( $result['id'] && $result['id'] === $current_reward ) {
+			$image_logs[] = 'Reward: already assigned, skipped';
+		} elseif ( $result['log'] ) {
+			$image_logs[] = 'Reward: ' . $result['log'];
 		}
 	}
 
 	$action = $is_update ? 'Updated' : 'Created';
+	$msg    = "$action POI: $nombre (ID: $poi_id)";
+	if ( ! empty( $image_logs ) ) {
+		$msg .= ' | ' . implode( ' | ', $image_logs );
+	}
 	return array(
 		'success' => true,
 		'created' => ! $is_update,
-		'message' => "$action POI: $nombre (ID: $poi_id)",
+		'message' => $msg,
 	);
 }
 
@@ -775,4 +830,89 @@ function city_ensure_map_for_city( $slug, $title ) {
 	) );
 
 	return is_wp_error( $post_id ) ? false : (int) $post_id;
+}
+
+/**
+ * Find an attachment by filename (basename) in the media library.
+ *
+ * Searches `_wp_attached_file` meta which stores the path relative to the
+ * uploads directory (e.g. `2026/05/photo.jpg`). A LIKE query on the basename
+ * catches it regardless of the year/month subdirectory.
+ *
+ * @since 0.8
+ *
+ * @param string $filename Filename with extension, e.g. "photo.jpg".
+ * @return int|false Attachment ID or false.
+ */
+function city_get_image_id_by_filename( $filename ) {
+	global $wpdb;
+
+	$like = '%' . $wpdb->esc_like( $filename );
+	$id   = $wpdb->get_var( $wpdb->prepare(
+		"SELECT post_id FROM {$wpdb->postmeta}
+		 WHERE meta_key = '_wp_attached_file'
+		 AND meta_value LIKE %s
+		 LIMIT 1",
+		$like
+	) );
+
+	return $id ? (int) $id : false;
+}
+
+/**
+ * Find an existing image in the media library or download it.
+ *
+ * Checks for duplicates in this order:
+ *   1. By GUID (exact URL match — fastest, catches re-imports from the same URL).
+ *   2. By filename extracted from the URL (catches the same file from a different URL).
+ *   3. If not found, downloads via `media_sideload_image()`.
+ *
+ * Returns an array with `id` (attachment ID, 0 on failure) and `log` (human-readable
+ * message describing what happened, for the import results summary).
+ *
+ * @since 0.8
+ *
+ * @param string $url     Remote image URL.
+ * @param int    $post_id Post to attach the image to.
+ * @return array { id: int, log: string }
+ */
+function city_find_or_import_image( $url, $post_id ) {
+	if ( empty( $url ) ) {
+		return array( 'id' => 0, 'log' => '' );
+	}
+
+	// 1. Check by GUID (exact URL match).
+	$att_id = city_get_image_id_by_url( $url );
+	if ( $att_id ) {
+		return array(
+			'id'  => $att_id,
+			'log' => 'Image reused (same URL already in media)',
+		);
+	}
+
+	// 2. Check by filename in _wp_attached_file meta.
+	$filename = basename( parse_url( $url, PHP_URL_PATH ) );
+	if ( $filename ) {
+		$att_id = city_get_image_id_by_filename( $filename );
+		if ( $att_id ) {
+			return array(
+				'id'  => $att_id,
+				'log' => sprintf( 'Image reused (filename "%s" found in media, skipped download)', $filename ),
+			);
+		}
+	}
+
+	// 3. Not found anywhere — download.
+	$att_id = media_sideload_image( $url, $post_id, null, 'id' );
+	if ( is_wp_error( $att_id ) ) {
+		return array(
+			'id'  => 0,
+			'log' => sprintf( 'Image download FAILED: %s', $att_id->get_error_message() ),
+		);
+	}
+
+	return array(
+		'id'  => (int) $att_id,
+		'log' => sprintf( 'Image downloaded (%s)', $filename ?: $url ),
+	);
 }
