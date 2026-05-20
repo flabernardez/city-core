@@ -95,6 +95,15 @@ function city_enqueue_favorites_script() {
 		true
 	);
 
+	// Modal toggle — adds close-on-retrigger to Light Modal Block plugin.
+	wp_enqueue_script(
+		'city-modal-toggle',
+		CITY_CORE_URL . 'assets/js/city-modal-toggle.js',
+		array(),
+		CITY_CORE_VERSION,
+		true
+	);
+
 	// Inject POI data (slug + citySlug) as a global on single POI pages.
 	if ( is_singular( 'poi' ) ) {
 		$poi_id     = get_the_ID();

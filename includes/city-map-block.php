@@ -188,19 +188,14 @@ function city_map_block_render( $attributes, $content, $block ) {
 	<div id="city-map-wrapper">
 		<div id="city-map"></div>
 
-		<!-- Centred button -->
+		<!-- Position button (icon only) -->
 		<div class="city-map-button">
-			<div class="wp-block-button with-icon">
-				<a id="city-center-user-btn"
-				   class="wp-block-button__link wp-element-button"
-				   href="#">
-					<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"
-						 width="18" height="18" fill="currentColor" aria-hidden="true">
-						<path d="M256 32C167.67 32 96 96.51 96 176c0 128 160 304 160 304s160-176 160-304c0-79.49-71.67-144-160-144m0 224a64 64 0 1 1 64-64 64.07 64.07 0 0 1-64 64"></path>
-					</svg>
-					<span><?php esc_html_e( 'Update position', 'city-core' ); ?></span>
-				</a>
-			</div>
+			<a id="city-center-user-btn" href="#" aria-label="<?php esc_attr_e( 'Update position', 'city-core' ); ?>">
+				<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"
+					 width="18" height="18" fill="currentColor" aria-hidden="true">
+					<path d="M256 32C167.67 32 96 96.51 96 176c0 128 160 304 160 304s160-176 160-304c0-79.49-71.67-144-160-144m0 224a64 64 0 1 1 64-64 64.07 64.07 0 0 1-64 64"></path>
+				</svg>
+			</a>
 		</div>
 	</div>
 
@@ -213,9 +208,9 @@ function city_map_block_render( $attributes, $content, $block ) {
 #city-map .leaflet-tile{filter:saturate(.65) hue-rotate(12deg) brightness(1.02) contrast(1.06);}
 
 /* Button */
-.city-map-button{position:absolute;left:50%;bottom:20vh;transform:translateX(-50%);z-index:3000;display:flex;flex-direction:column;align-items:center;}
-#city-center-user-btn{display:inline-flex;align-items:center;gap:8px;white-space:nowrap;background:<?php echo esc_attr( city_hex_to_rgba( $map_colors['button_bg'], 0.95 ) ); ?>;color:<?php echo esc_attr( $map_colors['button_text'] ); ?>;border-radius:999px;border:2px solid <?php echo esc_attr( $map_colors['button'] ); ?>;box-shadow:0 12px 24px rgba(0,0,0,.25);backdrop-filter:blur(8px);padding:12px 18px;font-weight:400;font-family:var(--wp--preset--font-family--system-font);font-size:inherit;text-decoration:none;transition:transform .12s ease,box-shadow .12s ease;}
-#city-center-user-btn:active,#city-center-user-btn.tap{transform:scale(.96);box-shadow:0 6px 14px rgba(0,0,0,.22);}
+.city-map-button{position:absolute;right:var(--wp--preset--spacing--50,20px);bottom:106px;z-index:3000;}
+#city-center-user-btn{display:flex;align-items:center;justify-content:center;width:44px;height:44px;background:<?php echo esc_attr( city_hex_to_rgba( $map_colors['button_bg'], 0.95 ) ); ?>;color:<?php echo esc_attr( $map_colors['button_text'] ); ?>;border-radius:0;border:2px solid <?php echo esc_attr( $map_colors['button'] ); ?>;box-shadow:0 4px 12px rgba(0,0,0,.25);backdrop-filter:blur(8px);padding:0;text-decoration:none;transition:transform .12s ease,box-shadow .12s ease;}
+#city-center-user-btn:active,#city-center-user-btn.tap{transform:scale(.96);box-shadow:0 2px 8px rgba(0,0,0,.22);}
 
 /* POI markers */
 .city-poi-marker{display:flex;align-items:center;justify-content:center;width:36px;height:44px;font-size:36px;filter:drop-shadow(0 2px 6px rgba(0,0,0,.35));transition:transform .15s ease,opacity .25s ease;cursor:pointer;}
