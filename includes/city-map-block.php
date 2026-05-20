@@ -250,8 +250,11 @@ function city_map_block_render( $attributes, $content, $block ) {
 
 .city-popup{max-width:240px;}
 .city-popup-inner{padding:14px 18px 12px;text-align:center;}
+.city-popup-category-icon{text-align:center;font-size:28px;margin:0 0 8px;line-height:1;}
+.city-popup-category-icon svg{width:1em;height:1em;fill:currentColor;}
 .city-popup-title{font-family:inherit;font-weight:700;font-size:14px;line-height:1.2;color:<?php echo esc_attr( $map_colors['popup_text'] ); ?>;margin:0 0 8px;text-transform:uppercase;letter-spacing:0.02em;}
-.city-popup-link{display:inline-block;font-size:12px;color:<?php echo esc_attr( $map_colors['popup_text'] ); ?>;text-decoration:underline;margin-top:8px;}
+.city-popup-button{margin-top:10px;}
+.city-popup-button .wp-block-button__link{font-family:inherit;font-size:var(--wp--preset--font-size--small,13px);font-style:normal;font-weight:500;letter-spacing:1px;line-height:0.8;padding:8px 18px;background:var(--wp--preset--color--core-light-gray,#f0f0f0);border:none;border-radius:100px;color:<?php echo esc_attr( $map_colors['popup_text'] ); ?>;text-decoration:none;display:inline-block;cursor:pointer;}
 .city-popup-locked-msg,
 .city-popup-completed-msg{font-family:inherit;font-size:12px;color:<?php echo esc_attr( $map_colors['popup_text'] ); ?>;margin:0;line-height:1.4;}
 .city-popup--completed .city-popup-title{color:<?php echo esc_attr( $map_colors['category_active'] ); ?>;}

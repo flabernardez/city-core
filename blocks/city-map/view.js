@@ -226,15 +226,27 @@ async function initCityMap() {
 		return lockedIcon( lockedUseCategory ? poi.color : '' );
 	}
 
+	function popupButton( poi ) {
+		return `<div class="wp-block-button is-style-outline city-popup-button"><a class="wp-block-button__link wp-element-button" href="${ escapeHtml( poi.url ) }">${ escapeHtml( viewMore ) }</a></div>`;
+	}
+
+	function popupCategoryIcon( poi ) {
+		if ( ! poi.categorySvg ) return '';
+		const style = poi.color ? ` style="color:${ poi.color }"` : '';
+		return `<div class="city-popup-category-icon"${ style }>${ poi.categorySvg }</div>`;
+	}
+
 	function unlockedPopup( poi ) {
 		return `<div class="city-popup"><div class="city-popup-inner">
+			${ popupCategoryIcon( poi ) }
 			<div class="city-popup-title">${ escapeHtml( poi.name ) }</div>
-			<a class="city-popup-link" href="${ escapeHtml( poi.url ) }">${ escapeHtml( viewMore ) }</a>
+			${ popupButton( poi ) }
 		</div></div>`;
 	}
 
 	function lockedPopup( poi ) {
 		return `<div class="city-popup city-popup--locked"><div class="city-popup-inner">
+			${ popupCategoryIcon( poi ) }
 			<div class="city-popup-title">${ escapeHtml( poi.name ) }</div>
 			<p class="city-popup-locked-msg">${ escapeHtml( lockedMsg ) }</p>
 		</div></div>`;
@@ -242,9 +254,10 @@ async function initCityMap() {
 
 	function completedPopup( poi ) {
 		return `<div class="city-popup city-popup--completed"><div class="city-popup-inner">
+			${ popupCategoryIcon( poi ) }
 			<div class="city-popup-title">${ escapeHtml( poi.name ) }</div>
 			<p class="city-popup-completed-msg">${ escapeHtml( completedMsg ) }</p>
-			<a class="city-popup-link" href="${ escapeHtml( poi.url ) }">${ escapeHtml( viewMore ) }</a>
+			${ popupButton( poi ) }
 		</div></div>`;
 	}
 
@@ -300,11 +313,46 @@ async function initCityMap() {
 	// ── Fit all markers ──────────────────────────────────────────────────────
 	const allMarkers = Object.values( markers ).map( ( m ) => m.marker );
 
+	// ── Persist map view across page navigations ─────────────────────────
+	// Saves center + zoom to sessionStorage on every move so that coming
+	// back from a POI page restores the exact same view instead of fitting
+	// all markers from scratch.
+	const viewStorageKey = 'city_map_view_' + citySlug;
+
+	function saveMapView() {
+		try {
+			const c = map.getCenter();
+			sessionStorage.setItem( viewStorageKey, JSON.stringify( {
+				lat: c.lat, lng: c.lng, zoom: map.getZoom(),
+			} ) );
+		} catch ( e ) {}
+	}
+
+	function restoreMapView() {
+		try {
+			const raw = sessionStorage.getItem( viewStorageKey );
+			if ( raw ) {
+				const v = JSON.parse( raw );
+				if ( v && v.lat && v.lng && v.zoom ) {
+					map.setView( [ v.lat, v.lng ], v.zoom );
+					return true;
+				}
+			}
+		} catch ( e ) {}
+		return false;
+	}
+
+	map.on( 'moveend', saveMapView );
+
+	let viewRestored = false;
+
 	function fitAll() {
 		forceBlockFullWidth( mapEl );
 		map.invalidateSize();
 		if ( deepPoi && markers[ deepPoi ] ) {
 			map.setView( markers[ deepPoi ].marker.getLatLng(), 16 );
+		} else if ( restoreMapView() ) {
+			viewRestored = true;
 		} else if ( allMarkers.length ) {
 			map.fitBounds( L.featureGroup( allMarkers ).getBounds(), { padding: [ 50, 50 ] } );
 		} else {
@@ -399,7 +447,16 @@ async function initCityMap() {
 
 	// Invalidate after CSS has painted.
 	setTimeout( () => { forceBlockFullWidth( mapEl ); map.invalidateSize(); }, 250 );
-	window.addEventListener( 'load', () => { setTimeout( () => { map.invalidateSize(); fitAll(); }, 300 ); } );
+	window.addEventListener( 'load', () => {
+		setTimeout( () => {
+			map.invalidateSize();
+			// Only re-fit if we did NOT restore a saved view — otherwise the
+			// second fitAll() would overwrite the restored position.
+			if ( ! viewRestored ) {
+				fitAll();
+			}
+		}, 300 );
+	} );
 
 	// ── Proximity unlock/lock ───────────────────────────────────────────────
 	function checkProximity( userLat, userLng ) {
@@ -563,7 +620,8 @@ async function initCityMap() {
 	}
 
 	// Initial warmup — then switches to continuous tracking.
-	startWarmup( { maxTimeMs: 25000, targetAccuracyM: 20, fitOnStart: true, fitOnEnd: false } );
+	// If we restored a saved view, don't zoom out on first GPS fix.
+	startWarmup( { maxTimeMs: 25000, targetAccuracyM: 20, fitOnStart: ! viewRestored, fitOnEnd: false } );
 
 	// ── Center-user button ─────────────────────────────────────────────────
 	const centerBtn = document.getElementById( 'city-center-user-btn' );
