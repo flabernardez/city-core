@@ -221,8 +221,8 @@ function city_map_block_render( $attributes, $content, $block ) {
 .city-poi-marker{display:flex;align-items:center;justify-content:center;width:36px;height:44px;font-size:36px;filter:drop-shadow(0 2px 6px rgba(0,0,0,.35));transition:transform .15s ease,opacity .25s ease;cursor:pointer;}
 .city-poi-marker svg{width:1em;height:1em;}
 .city-poi-marker--locked{color:<?php echo esc_attr( $map_colors['locked'] ); ?>;}
-.city-poi-marker--unlocked{color:#00624D;}
-.city-poi-marker--completed{color:#e07722;}
+.city-poi-marker--unlocked{color:<?php echo esc_attr( $map_colors['unlocked'] ); ?>;}
+.city-poi-marker--completed{color:<?php echo esc_attr( $map_colors['category_active'] ); ?>;}
 .city-poi-marker:hover{transform:scale(1.12);}
 .city-poi-marker--inline{width:28px;height:28px;font-size:28px;margin:0 auto 6px;filter:none;}
 

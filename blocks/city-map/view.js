@@ -13,6 +13,8 @@
 
 const LOCK_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M6 22q-.825 0-1.412-.587T4 20V10q0-.825.588-1.412T6 8h1V6q0-2.075 1.463-3.537T12 1t3.538 1.463T17 6v2h1q.825 0 1.413.588T20 10v10q0 .825-.587 1.413T18 22zm7.413-5.587Q14 15.825 14 15t-.587-1.412T12 13t-1.412.588T10 15t.588 1.413T12 17t1.413-.587M9 8h6V6q0-1.25-.875-2.125T12 3t-2.125.875T9 6z"/></svg>`;
 
+const UNLOCK_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M13.413 16.413Q14 15.825 14 15t-.587-1.412T12 13t-1.412.588T10 15t.588 1.413T12 17t1.413-.587M6 22q-.825 0-1.412-.587T4 20V10q0-.825.588-1.412T6 8h7V6q0-2.075 1.463-3.537T18 1t3.538 1.463T23 6h-2q0-1.25-.875-2.125T18 3t-2.125.875T15 6v2h3q.825 0 1.413.588T20 10v10q0 .825-.587 1.413T18 22z"/></svg>`;
+
 const LOCATION_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M11.3 21.2q-.35-.125-.625-.375Q9.05 19.325 7.8 17.9t-2.087-2.762t-1.275-2.575T4 10.2q0-3.75 2.413-5.975T12 2t5.588 2.225T20 10.2q0 1.125-.437 2.363t-1.275 2.575T16.2 17.9t-2.875 2.925q-.275.25-.625.375t-.7.125t-.7-.125m2.113-9.787Q14 10.825 14 10t-.587-1.412T12 8t-1.412.588T10 10t.588 1.413T12 12t1.413-.587"/></svg>`;
 
 const COMPLETED_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="m10.95 11.175l-.725-.725q-.3-.275-.7-.275t-.7.3t-.3.7t.3.7l1.4 1.425q.3.3.713.3t.712-.3l3.525-3.55q.3-.3.3-.7t-.3-.7t-.7-.3t-.7.3zM12 18l-4.2 1.8q-1 .425-1.9-.162T5 17.975V5q0-.825.588-1.412T7 3h10q.825 0 1.413.588T19 5v12.975q0 1.075-.9 1.663t-1.9.162z"/></svg>`;
@@ -125,23 +127,26 @@ function lockedIcon( color ) {
 	} );
 }
 
-function unlockedIcon( color, categorySvg ) {
-	const style = color ? ` style="color:${ color }"` : '';
-	const svg   = categorySvg || LOCATION_SVG;
+function unlockedIcon() {
+	// Unlocked POIs always show the lock-open icon. Color comes from CSS
+	// (.city-poi-marker--unlocked) which reads the configurable option.
 	return L.divIcon( {
 		className:   '',
-		html:        `<div class="city-poi-marker city-poi-marker--unlocked"${ style }>${ svg }</div>`,
+		html:        `<div class="city-poi-marker city-poi-marker--unlocked">${ UNLOCK_SVG }</div>`,
 		iconSize:    [ 36, 44 ],
 		iconAnchor:  [ 18, 44 ],
 		popupAnchor: [ 0, -46 ],
 	} );
 }
 
-function completedIcon( color ) {
+function completedIcon( color, categorySvg ) {
+	// Completed POIs show the category SVG icon with the category color.
+	// Falls back to COMPLETED_SVG if no category icon is assigned.
 	const style = color ? ` style="color:${ color }"` : '';
+	const svg   = categorySvg || COMPLETED_SVG;
 	return L.divIcon( {
 		className:   '',
-		html:        `<div class="city-poi-marker city-poi-marker--completed"${ style }>${ COMPLETED_SVG }</div>`,
+		html:        `<div class="city-poi-marker city-poi-marker--completed"${ style }>${ svg }</div>`,
 		iconSize:    [ 36, 44 ],
 		iconAnchor:  [ 18, 44 ],
 		popupAnchor: [ 0, -46 ],
@@ -213,10 +218,10 @@ async function initCityMap() {
 	// ── Popup HTML helpers ────────────────────────────────────────────────────
 	function getMarkerIcon( poi, isUnlocked, isCompleted ) {
 		if ( isCompleted ) {
-			return completedIcon( poi.color );
+			return completedIcon( poi.color, poi.categorySvg );
 		}
 		if ( isUnlocked ) {
-			return unlockedIcon( poi.color, poi.categorySvg );
+			return unlockedIcon();
 		}
 		return lockedIcon( lockedUseCategory ? poi.color : '' );
 	}
@@ -427,7 +432,7 @@ async function initCityMap() {
 					unlockedSlugs.add( slug );
 					anyChange = true;
 
-					item.marker.setIcon( unlockedIcon( item.poi.color, item.poi.categorySvg ) );
+					item.marker.setIcon( unlockedIcon() );
 					item.marker.setPopupContent( unlockedPopup( item.poi ) );
 					item.marker.openPopup();
 				}
@@ -596,7 +601,7 @@ async function initCityMap() {
 		saveUnlocked( citySlug, unlockedSlugs );
 
 		// Update marker icon and popup.
-		item.marker.setIcon( completedIcon( item.poi.color ) );
+		item.marker.setIcon( completedIcon( item.poi.color, item.poi.categorySvg ) );
 		item.marker.setPopupContent( completedPopup( item.poi ) );
 		item.marker.openPopup();
 	} );

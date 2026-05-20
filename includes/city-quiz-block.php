@@ -270,7 +270,7 @@ function city_quiz_block_render( $attributes, $content, $block ) {
 				if (selected === correctAnswer) {
 					// Correct!
 					this.classList.add('correct');
-					feedback.textContent = '<?php echo esc_js( $reward_message ); ?>';
+					feedback.textContent = '<?php echo esc_js( __( 'Respuesta correcta', 'city-core' ) ); ?>';
 					feedback.className = 'city-quiz-feedback success';
 					feedback.style.display = 'block';
 
@@ -339,7 +339,7 @@ function city_quiz_block_render( $attributes, $content, $block ) {
 					o.classList.add('correct');
 				}
 			});
-			feedback.textContent = '<?php esc_html_e( 'Completed!', 'city-core' ); ?>';
+			feedback.textContent = '<?php echo esc_js( __( 'Respuesta correcta', 'city-core' ) ); ?>';
 			feedback.className = 'city-quiz-feedback success';
 			feedback.style.display = 'block';
 		}
