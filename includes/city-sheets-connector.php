@@ -138,6 +138,14 @@ function city_ajax_import_pois() {
 				$results['updated']++;
 			}
 			$results['log'][] = $result['message'];
+
+			// Create/update Polylang translations for this POI.
+			if ( ! empty( $result['poi_id'] ) ) {
+				$translation_log = city_import_poi_translations( $result['poi_id'], $row, $col );
+				foreach ( $translation_log as $tl ) {
+					$results['log'][] = '  ↳ ' . $tl;
+				}
+			}
 		} else {
 			$results['errors']++;
 			$results['log'][] = 'ERROR: ' . $result['message'];
@@ -533,7 +541,266 @@ function city_import_single_poi( $header, $row, $col ) {
 		'success' => true,
 		'created' => ! $is_update,
 		'message' => $msg,
+		'poi_id'  => $poi_id,
 	);
+}
+
+/**
+ * Ensure a translated poi-category term exists for a given language.
+ *
+ * If a Polylang translation of the base term already exists for the target
+ * language, updates its name and returns its ID. Otherwise creates a new term,
+ * sets its language, copies term meta (color, SVG) from the base, and links
+ * it as a translation via Polylang.
+ *
+ * @since 0.8
+ *
+ * @param int    $base_term_id       Base (Spanish) term ID.
+ * @param string $translated_name    Translated term name (e.g. "Jatetxeak").
+ * @param string $lang_code          Target language slug (e.g. 'eu').
+ * @return int Translated term ID.
+ */
+function city_ensure_translated_poi_category( $base_term_id, $translated_name, $lang_code ) {
+	// Check if a Polylang translation already exists for this term+lang.
+	$existing_id = function_exists( 'pll_get_term' ) ? pll_get_term( $base_term_id, $lang_code ) : 0;
+
+	if ( $existing_id ) {
+		// Update the name if it changed.
+		wp_update_term( $existing_id, 'poi-category', array( 'name' => $translated_name ) );
+		return $existing_id;
+	}
+
+	// Create the translated term.
+	$slug   = sanitize_title( remove_accents( $translated_name ) );
+	$result = wp_insert_term( $translated_name, 'poi-category', array( 'slug' => $slug ) );
+
+	if ( is_wp_error( $result ) ) {
+		// Term with that slug might exist — get it.
+		$term = get_term_by( 'slug', $slug, 'poi-category' );
+		if ( $term ) {
+			$translated_term_id = $term->term_id;
+		} else {
+			// Last resort: return the base term.
+			return $base_term_id;
+		}
+	} else {
+		$translated_term_id = $result['term_id'];
+	}
+
+	// Set the language for the new term.
+	if ( function_exists( 'pll_set_term_language' ) ) {
+		pll_set_term_language( $translated_term_id, $lang_code );
+	}
+
+	// Link the translated term to the base term.
+	if ( function_exists( 'pll_save_term_translations' ) ) {
+		// Get existing translations group for the base term.
+		$translations = array( 'es' => $base_term_id, $lang_code => $translated_term_id );
+
+		// Preserve any other existing translations.
+		if ( function_exists( 'pll_get_term' ) ) {
+			$all_langs = array( 'es', 'eu', 'fr', 'en' );
+			foreach ( $all_langs as $l ) {
+				if ( isset( $translations[ $l ] ) ) {
+					continue;
+				}
+				$t = pll_get_term( $base_term_id, $l );
+				if ( $t ) {
+					$translations[ $l ] = $t;
+				}
+			}
+		}
+
+		pll_save_term_translations( $translations );
+	}
+
+	// Copy term meta (color, SVG) from base term.
+	$color = get_term_meta( $base_term_id, 'city_poi_category_color', true );
+	$svg   = get_term_meta( $base_term_id, 'city_poi_category_svg', true );
+	if ( $color ) {
+		update_term_meta( $translated_term_id, 'city_poi_category_color', $color );
+	}
+	if ( $svg ) {
+		update_term_meta( $translated_term_id, 'city_poi_category_svg', $svg );
+	}
+
+	return $translated_term_id;
+}
+
+/**
+ * Create or update Polylang translations for a POI.
+ *
+ * Reads language-specific columns from the sheet row (e.g. "informacion euskera",
+ * "pista frances") and creates translated POI posts linked via Polylang.
+ * A translation is only created when at least one translatable column for that
+ * language has content; empty languages are skipped entirely.
+ *
+ * @since 0.8
+ *
+ * @param int   $poi_id Base POI post ID (Spanish).
+ * @param array $row    CSV row values.
+ * @param array $col    Column-name → index map.
+ * @return array Log messages for the import report.
+ */
+function city_import_poi_translations( $poi_id, $row, $col ) {
+	$log = array();
+
+	if ( ! function_exists( 'pll_set_post_language' ) ) {
+		return $log;
+	}
+
+	// Helper: read a column value by its sanitized key.
+	$get = function ( $key ) use ( $row, $col ) {
+		$normalized = sanitize_title( remove_accents( $key ) );
+		$idx        = isset( $col[ $normalized ] ) ? $col[ $normalized ] : -1;
+		return ( $idx >= 0 && $idx < count( $row ) ) ? $row[ $idx ] : '';
+	};
+
+	// Assign the default language (es) to the base POI.
+	pll_set_post_language( $poi_id, 'es' );
+
+	// Languages to import: Polylang slug → sheet column suffix.
+	$languages = array(
+		'eu' => 'euskera',
+		'fr' => 'frances',
+		'en' => 'ingles',
+	);
+
+	// Translatable column bases (the suffix is appended after a space).
+	$translatable_columns = array(
+		'informacion'        => 'post_content',
+		'pista'              => 'city_poi_hint',
+		'pregunta del quiz'  => 'city_poi_quiz_question',
+		'respuesta1'         => 'city_poi_quiz_answer_1',
+		'respuesta2'         => 'city_poi_quiz_answer_2',
+		'respuesta3'         => 'city_poi_quiz_answer_3',
+		'recompensa del quizz' => 'city_poi_reward_message',
+	);
+
+	$base_post  = get_post( $poi_id );
+	$base_slug  = $base_post->post_name;
+	$base_title = $base_post->post_title;
+
+	// Gather taxonomy terms from the base POI to assign to translations.
+	$city_terms     = wp_get_object_terms( $poi_id, 'city', array( 'fields' => 'ids' ) );
+	$category_terms = wp_get_object_terms( $poi_id, 'poi-category', array( 'fields' => 'ids' ) );
+
+	// Shared meta keys to copy from the base POI to each translation.
+	$shared_metas = array(
+		'city_poi_lat',
+		'city_poi_lng',
+		'city_poi_manual_lat',
+		'city_poi_manual_lng',
+		'city_poi_maps_url',
+		'city_poi_tolerance',
+		'city_poi_quiz_correct',
+		'city_poi_quiz_correct_img',
+		'city_poi_quiz_correct_img_url',
+	);
+
+	$translations = array( 'es' => $poi_id );
+
+	foreach ( $languages as $lang_code => $suffix ) {
+		// Read all translatable fields for this language.
+		$fields = array();
+		foreach ( $translatable_columns as $col_base => $meta_key ) {
+			$fields[ $meta_key ] = $get( $col_base . ' ' . $suffix );
+		}
+
+		// Check if at least one translatable field has content.
+		$has_content = false;
+		foreach ( $fields as $value ) {
+			if ( '' !== $value ) {
+				$has_content = true;
+				break;
+			}
+		}
+
+		if ( ! $has_content ) {
+			continue;
+		}
+
+		// Check if a translated post already exists via Polylang.
+		$existing_id = pll_get_post( $poi_id, $lang_code );
+
+		$translated_slug = $base_slug . '-' . $lang_code;
+
+		$post_data = array(
+			'post_type'    => 'poi',
+			'post_title'   => $base_title,
+			'post_name'    => $translated_slug,
+			'post_content' => $fields['post_content'],
+			'post_status'  => 'publish',
+		);
+
+		if ( $existing_id ) {
+			$post_data['ID'] = $existing_id;
+			wp_update_post( $post_data );
+			$translated_id = $existing_id;
+			$action = 'Updated';
+		} else {
+			$translated_id = wp_insert_post( $post_data );
+			if ( is_wp_error( $translated_id ) || empty( $translated_id ) ) {
+				$log[] = "ERROR: Failed to create $lang_code translation for POI $poi_id";
+				continue;
+			}
+			$action = 'Created';
+		}
+
+		// Set language.
+		pll_set_post_language( $translated_id, $lang_code );
+
+		// Save translated metas.
+		foreach ( $fields as $meta_key => $value ) {
+			if ( 'post_content' === $meta_key ) {
+				continue; // Already in post_content.
+			}
+			update_post_meta( $translated_id, $meta_key, $value );
+		}
+
+		// Copy shared metas from base POI.
+		foreach ( $shared_metas as $meta_key ) {
+			$base_value = get_post_meta( $poi_id, $meta_key, true );
+			if ( '' !== $base_value ) {
+				update_post_meta( $translated_id, $meta_key, $base_value );
+			}
+		}
+
+		// Assign city taxonomy (shared, not translatable — same term for all languages).
+		if ( ! empty( $city_terms ) && ! is_wp_error( $city_terms ) ) {
+			wp_set_object_terms( $translated_id, $city_terms, 'city' );
+		}
+
+		// Assign translated poi-category term from the sheet column.
+		$translated_cat_name = $get( 'categoria ' . $suffix );
+		if ( ! empty( $translated_cat_name ) && ! empty( $category_terms ) && ! is_wp_error( $category_terms ) ) {
+			$base_term_id        = $category_terms[0];
+			$translated_term_id  = city_ensure_translated_poi_category( $base_term_id, $translated_cat_name, $lang_code );
+			wp_set_object_terms( $translated_id, array( $translated_term_id ), 'poi-category' );
+		} elseif ( ! empty( $category_terms ) && ! is_wp_error( $category_terms ) ) {
+			// Fallback: use whatever Polylang already has, or the base term.
+			$translated_cat_terms = array_map( function ( $tid ) use ( $lang_code ) {
+				return city_pll_get_translated_term( $tid, $lang_code );
+			}, $category_terms );
+			wp_set_object_terms( $translated_id, $translated_cat_terms, 'poi-category' );
+		}
+
+		// Copy featured image from base POI.
+		$thumb_id = get_post_thumbnail_id( $poi_id );
+		if ( $thumb_id ) {
+			set_post_thumbnail( $translated_id, $thumb_id );
+		}
+
+		$translations[ $lang_code ] = $translated_id;
+		$log[] = "$action $lang_code translation (ID: $translated_id) for POI $poi_id";
+	}
+
+	// Link all translations together.
+	if ( count( $translations ) > 1 ) {
+		pll_save_post_translations( $translations );
+	}
+
+	return $log;
 }
 
 /**

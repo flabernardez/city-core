@@ -41,6 +41,13 @@ require_once CITY_CORE_DIR . 'includes/city-button-back.php';
 require_once CITY_CORE_DIR . 'includes/city-first-visit.php';
 require_once CITY_CORE_DIR . 'includes/city-accessibility-block.php';
 
+// Polylang integration — loaded only when Polylang is active.
+add_action( 'plugins_loaded', function () {
+	if ( defined( 'POLYLANG_VERSION' ) ) {
+		require_once CITY_CORE_DIR . 'includes/city-polylang.php';
+	}
+} );
+
 // -------------------------------------------------------------------------
 // Enqueue favorites script
 // -------------------------------------------------------------------------
