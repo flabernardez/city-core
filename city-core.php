@@ -39,6 +39,7 @@ require_once CITY_CORE_DIR . 'includes/city-quiz-block.php';
 require_once CITY_CORE_DIR . 'includes/city-ajax.php';
 require_once CITY_CORE_DIR . 'includes/city-button-back.php';
 require_once CITY_CORE_DIR . 'includes/city-first-visit.php';
+require_once CITY_CORE_DIR . 'includes/city-accessibility-block.php';
 
 // -------------------------------------------------------------------------
 // Enqueue favorites script

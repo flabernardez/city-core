@@ -233,12 +233,12 @@ function city_map_block_render( $attributes, $content, $block ) {
 .city-user-wave{position:absolute;top:50%;left:50%;width:26px;height:26px;border-radius:50%;background:<?php echo esc_attr( city_hex_to_rgba( $map_colors['button'], 0.22 ) ); ?>;transform:translate(-50%,-50%) scale(1);z-index:1;animation:cityWave 2.8s ease-out infinite;}
 .city-user-wave.delay{animation-delay:1.4s;}
 @keyframes cityWave{0%{transform:translate(-50%,-50%) scale(1);opacity:.55;}70%{opacity:.15;}100%{transform:translate(-50%,-50%) scale(3);opacity:0;}}
-.city-user-dot{width:26px;height:26px;border-radius:50%;background:var(--wp--preset--color--core-off-white,#F5F5F5);border:2px solid <?php echo esc_attr( $map_colors['button'] ); ?>;box-shadow:0 4px 10px rgba(0,0,0,.25);display:flex;align-items:center;justify-content:center;position:relative;z-index:3;}
-.city-user-dot svg{width:14px;height:14px;fill:#222;}
+.city-user-dot{width:26px;height:26px;border-radius:50%;background:var(--wp--preset--color--core-off-white,#F5F5F5);border:2px solid var(--wp--preset--color--contrast,#1E1E1E);box-shadow:0 4px 10px rgba(0,0,0,.25);display:flex;align-items:center;justify-content:center;position:relative;z-index:3;}
+.city-user-dot svg{width:14px;height:14px;fill:var(--wp--preset--color--contrast,#1E1E1E);}
 
 /* Popups — Figma-style: sharp corners, configurable border/bg/text, monospace */
 #city-map .leaflet-popup-content-wrapper{background:<?php echo esc_attr( $map_colors['popup_bg'] ); ?>;border:2px solid <?php echo esc_attr( $map_colors['popup_border'] ); ?>;border-radius:0;box-shadow:none;padding:0;}
-#city-map .leaflet-popup-content{margin:0;font-family:var(--wp--preset--font-family--monospace, ui-monospace, "JetBrains Mono", "Courier New", monospace);line-height:1.4;}
+#city-map .leaflet-popup-content{margin:0;font-family:var(--wp--preset--font-family--monospace, ui-monospace, "JetBrains Mono", "Courier New", monospace);font-size:var(--wp--preset--font-size--small,14px);line-height:1.4;}
 #city-map .leaflet-popup-tip{background:<?php echo esc_attr( $map_colors['popup_bg'] ); ?>;border:2px solid <?php echo esc_attr( $map_colors['popup_border'] ); ?>;box-shadow:none;}
 #city-map .leaflet-popup-tip-container{margin-top:-2px;}
 #city-map .leaflet-popup-close-button{color:<?php echo esc_attr( $map_colors['popup_text'] ); ?>;}
@@ -247,11 +247,11 @@ function city_map_block_render( $attributes, $content, $block ) {
 .city-popup-inner{padding:14px 18px 12px;text-align:center;}
 .city-popup-category-icon{text-align:center;font-size:28px;margin:0 0 8px;line-height:1;}
 .city-popup-category-icon svg{width:1em;height:1em;fill:currentColor;}
-.city-popup-title{font-family:inherit;font-weight:700;font-size:14px;line-height:1.2;color:<?php echo esc_attr( $map_colors['popup_text'] ); ?>;margin:0 0 8px;text-transform:uppercase;letter-spacing:0.02em;}
+.city-popup-title{font-family:inherit;font-weight:700;font-size:var(--wp--preset--font-size--small,14px);line-height:1.2;color:<?php echo esc_attr( $map_colors['popup_text'] ); ?>;margin:0 0 8px;text-transform:uppercase;letter-spacing:0.02em;}
 .city-popup-button{margin-top:10px;}
 .city-popup-button .wp-block-button__link{font-family:inherit;font-size:var(--wp--preset--font-size--small,13px);font-style:normal;font-weight:500;letter-spacing:1px;line-height:0.8;padding:8px 18px;background:var(--wp--preset--color--core-light-gray,#f0f0f0);border:none;border-radius:100px;color:<?php echo esc_attr( $map_colors['popup_text'] ); ?>;text-decoration:none;display:inline-block;cursor:pointer;}
 .city-popup-locked-msg,
-.city-popup-completed-msg{font-family:inherit;font-size:12px;color:<?php echo esc_attr( $map_colors['popup_text'] ); ?>;margin:0;line-height:1.4;}
+.city-popup-completed-msg{font-family:inherit;font-size:var(--wp--preset--font-size--small,14px);color:var(--wp--preset--color--contrast,#1E1E1E);margin:0;line-height:1.4;}
 .city-popup--completed .city-popup-title{color:<?php echo esc_attr( $map_colors['category_active'] ); ?>;}
 	</style>
 	<?php
