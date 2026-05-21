@@ -233,7 +233,7 @@ function city_map_block_render( $attributes, $content, $block ) {
 .city-user-wave{position:absolute;top:50%;left:50%;width:26px;height:26px;border-radius:50%;background:<?php echo esc_attr( city_hex_to_rgba( $map_colors['button'], 0.22 ) ); ?>;transform:translate(-50%,-50%) scale(1);z-index:1;animation:cityWave 2.8s ease-out infinite;}
 .city-user-wave.delay{animation-delay:1.4s;}
 @keyframes cityWave{0%{transform:translate(-50%,-50%) scale(1);opacity:.55;}70%{opacity:.15;}100%{transform:translate(-50%,-50%) scale(3);opacity:0;}}
-.city-user-dot{width:26px;height:26px;border-radius:50%;background:<?php echo esc_attr( city_hex_to_rgba( $map_colors['indicator_bg'], 0.95 ) ); ?>;border:2px solid <?php echo esc_attr( $map_colors['button'] ); ?>;box-shadow:0 4px 10px rgba(0,0,0,.25);display:flex;align-items:center;justify-content:center;position:relative;z-index:3;}
+.city-user-dot{width:26px;height:26px;border-radius:50%;background:var(--wp--preset--color--core-off-white,#F5F5F5);border:2px solid <?php echo esc_attr( $map_colors['button'] ); ?>;box-shadow:0 4px 10px rgba(0,0,0,.25);display:flex;align-items:center;justify-content:center;position:relative;z-index:3;}
 .city-user-dot svg{width:14px;height:14px;fill:#222;}
 
 /* Popups — Figma-style: sharp corners, configurable border/bg/text, monospace */

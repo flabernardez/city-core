@@ -307,3 +307,31 @@ function city_poi_category_icons_css() {
 	<?php
 }
 add_action( 'wp_head', 'city_poi_category_icons_css' );
+
+/**
+ * Override Light Modal Block styles to match the theme design.
+ *
+ * The plugin loads its CSS after the theme, so the theme's custom styles
+ * get overridden. We re-inject them at priority 99 to ensure they win.
+ *
+ * @since 0.8
+ */
+function city_light_modal_overrides_css() {
+	?>
+	<style>
+		.wp-block-cloudcatch-light-modal-block__wrapper.is-open {
+			justify-content: left !important;
+			left: var(--wp--preset--spacing--50) !important;
+			background-color: transparent !important;
+			top: unset !important;
+			bottom: 106px !important;
+			align-items: end !important;
+		}
+		.wp-block-cloudcatch-light-modal-block__close {
+			background-color: transparent !important;
+			padding: 1rem !important;
+		}
+	</style>
+	<?php
+}
+add_action( 'wp_head', 'city_light_modal_overrides_css', 99 );

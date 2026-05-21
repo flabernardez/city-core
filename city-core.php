@@ -95,10 +95,10 @@ function city_enqueue_favorites_script() {
 		true
 	);
 
-	// Modal toggle — adds close-on-retrigger to Light Modal Block plugin.
+	// Auto-close open <details> elements when clicking outside.
 	wp_enqueue_script(
-		'city-modal-toggle',
-		CITY_CORE_URL . 'assets/js/city-modal-toggle.js',
+		'city-details-autoclose',
+		CITY_CORE_URL . 'assets/js/city-details-autoclose.js',
 		array(),
 		CITY_CORE_VERSION,
 		true
