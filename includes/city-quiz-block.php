@@ -68,6 +68,15 @@ function city_quiz_block_render( $attributes, $content, $block ) {
 	}
 	$poi_slug = get_post_field( 'post_name', $post_id );
 
+	// Resolve base (default-language) POI slug for cross-language state sharing.
+	$base_slug = $poi_slug;
+	if ( function_exists( 'pll_get_post' ) && function_exists( 'pll_default_language' ) ) {
+		$base_poi_id = pll_get_post( $post_id, pll_default_language() );
+		if ( $base_poi_id ) {
+			$base_slug = get_post_field( 'post_name', $base_poi_id );
+		}
+	}
+
 	// Get quiz colors from settings.
 	$colors = city_get_quiz_colors();
 
@@ -84,6 +93,7 @@ function city_quiz_block_render( $attributes, $content, $block ) {
 	$poi_data = array(
 		'poiId'     => $post_id,
 		'poiSlug'   => $poi_slug,
+		'baseSlug'  => $base_slug,
 		'citySlug'  => $city_slug,
 		'nonce'     => wp_create_nonce( 'city_poi_nonce' ),
 	);
@@ -229,6 +239,7 @@ function city_quiz_block_render( $attributes, $content, $block ) {
 		var poiData = JSON.parse(container.dataset.poi || '{}');
 		var poiId = poiData.poiId;
 		var poiSlug = poiData.poiSlug || '';
+		var baseSlug = poiData.baseSlug || poiSlug;
 		var citySlug = poiData.citySlug || '';
 		var nonce = poiData.nonce || '';
 
@@ -243,9 +254,10 @@ function city_quiz_block_render( $attributes, $content, $block ) {
 		// here because it is GLOBAL — once any visitor completes the quiz, the
 		// meta is set to 1 for everyone. The quiz state must be per-visitor,
 		// so we only rely on localStorage which is browser-specific.
+		// Uses baseSlug so progress is shared across all language versions.
 		var completedKey = 'city_poi_completed_' + (citySlug || 'default');
 		var completed = JSON.parse(localStorage.getItem(completedKey) || '[]');
-		var isLocalCompleted = completed.includes(poiSlug);
+		var isLocalCompleted = completed.includes(baseSlug);
 
 		if (isLocalCompleted) {
 			showCompletedState();
@@ -274,9 +286,9 @@ function city_quiz_block_render( $attributes, $content, $block ) {
 					feedback.className = 'city-quiz-feedback success';
 					feedback.style.display = 'block';
 
-					// Save to localStorage.
-					if (!completed.includes(poiSlug)) {
-						completed.push(poiSlug);
+					// Save to localStorage (uses baseSlug for cross-language sharing).
+					if (!completed.includes(baseSlug)) {
+						completed.push(baseSlug);
 						localStorage.setItem(completedKey, JSON.stringify(completed));
 					}
 
@@ -310,7 +322,7 @@ function city_quiz_block_render( $attributes, $content, $block ) {
 
 					// Dispatch event for map to update.
 					window.dispatchEvent(new CustomEvent('cityPoiCompleted', {
-						detail: { poiId: poiId, poiSlug: poiSlug, citySlug: citySlug }
+						detail: { poiId: poiId, poiSlug: poiSlug, baseSlug: baseSlug, citySlug: citySlug }
 					}));
 
 				} else {
@@ -352,17 +364,17 @@ function city_quiz_block_render( $attributes, $content, $block ) {
 				var isFav = btn.classList.contains('added-fav');
 				var newState = isFav ? 0 : 1;
 
-				// Toggle cookie (client-side, always works).
+				// Toggle favorites (client-side). Uses baseSlug for cross-language sharing.
 				var cookieKey = 'city_poi_favorites_' + (citySlug || 'default');
 				var favorites = JSON.parse(localStorage.getItem(cookieKey) || '[]');
 
 				if (newState === 1) {
-					if (!favorites.includes(poiSlug)) {
-						favorites.push(poiSlug);
+					if (!favorites.includes(baseSlug)) {
+						favorites.push(baseSlug);
 					}
 					btn.classList.add('added-fav');
 				} else {
-					favorites = favorites.filter(function(s) { return s !== poiSlug; });
+					favorites = favorites.filter(function(s) { return s !== baseSlug; });
 					btn.classList.remove('added-fav');
 				}
 				localStorage.setItem(cookieKey, JSON.stringify(favorites));

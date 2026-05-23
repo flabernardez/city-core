@@ -65,7 +65,36 @@ function city_map_block_render( $attributes, $content, $block ) {
 	$city_slug     = $post->post_name;
 	$unlock_radius = isset( $attributes['unlockRadius'] ) ? (int) $attributes['unlockRadius'] : 50;
 
+	// When Polylang is active the translated map post may have a different
+	// slug (e.g. "alicante-en") while the shared city taxonomy term is still
+	// "alicante". Resolve the city slug from the base (default-language) post
+	// so the tax_query always matches the correct term regardless of slug.
+	$city_term_id = 0;
+	if ( function_exists( 'pll_get_post' ) && function_exists( 'pll_default_language' ) ) {
+		$default_lang = pll_default_language();
+		$base_post_id = pll_get_post( $post_id, $default_lang );
+		if ( ! $base_post_id ) {
+			$base_post_id = $post_id;
+		}
+
+		// Always use the base post's slug as fallback — the translated map
+		// slug (e.g. "alicante-en") won't match the city term ("alicante").
+		$base_post_obj = get_post( $base_post_id );
+		if ( $base_post_obj ) {
+			$city_slug = $base_post_obj->post_name;
+		}
+
+		$city_terms = get_the_terms( $base_post_id, 'city' );
+		if ( $city_terms && ! is_wp_error( $city_terms ) ) {
+			$city_term_id = $city_terms[0]->term_id;
+			$city_slug    = $city_terms[0]->slug;
+		}
+	}
+
 	// ── Query published POIs for this city ──────────────────────────────────
+	$tax_query_field = $city_term_id ? 'term_id' : 'slug';
+	$tax_query_value = $city_term_id ? $city_term_id : $city_slug;
+
 	$poi_query = new WP_Query( array(
 		'post_type'      => 'poi',
 		'post_status'    => 'publish',
@@ -73,8 +102,8 @@ function city_map_block_render( $attributes, $content, $block ) {
 		'tax_query'      => array( // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_tax_query
 			array(
 				'taxonomy' => 'city',
-				'field'    => 'slug',
-				'terms'    => $city_slug,
+				'field'    => $tax_query_field,
+				'terms'    => $tax_query_value,
 			),
 		),
 	) );
@@ -143,8 +172,20 @@ function city_map_block_render( $attributes, $content, $block ) {
 				}
 			}
 
+			// Resolve base (default-language) POI slug so all translations
+			// share the same progress key in localStorage.
+			$poi_slug  = get_post_field( 'post_name', $poi_id );
+			$base_slug = $poi_slug;
+			if ( function_exists( 'pll_get_post' ) && function_exists( 'pll_default_language' ) ) {
+				$base_poi_id = pll_get_post( $poi_id, pll_default_language() );
+				if ( $base_poi_id ) {
+					$base_slug = get_post_field( 'post_name', $base_poi_id );
+				}
+			}
+
 			$pois[] = array(
-				'slug'          => get_post_field( 'post_name', $poi_id ),
+				'slug'          => $poi_slug,
+				'baseSlug'      => $base_slug,
 				'name'          => get_the_title(),
 				'url'           => get_permalink(),
 				'lat'           => (float) $lat,
@@ -251,7 +292,7 @@ function city_map_block_render( $attributes, $content, $block ) {
 .city-popup-button{margin-top:10px;}
 .city-popup-button .wp-block-button__link{font-family:inherit;font-size:var(--wp--preset--font-size--small,13px);font-style:normal;font-weight:500;letter-spacing:1px;line-height:0.8;padding:8px 18px;background:var(--wp--preset--color--core-light-gray,#f0f0f0);border:none;border-radius:100px;color:<?php echo esc_attr( $map_colors['popup_text'] ); ?>;text-decoration:none;display:inline-block;cursor:pointer;}
 .city-popup-locked-msg,
-.city-popup-completed-msg{font-family:inherit;font-size:var(--wp--preset--font-size--small,14px);color:var(--wp--preset--color--contrast,#1E1E1E);margin:0;line-height:1.4;}
+.city-popup-completed-msg{font-family:inherit;font-size:var(--wp--preset--font-size--small,14px);color:var(--wp--preset--color--core-black);margin:0;line-height:1.4;}
 .city-popup--completed .city-popup-title{color:<?php echo esc_attr( $map_colors['category_active'] ); ?>;}
 	</style>
 	<?php

@@ -26,6 +26,16 @@ function city_ajax_complete_poi() {
 
 	update_post_meta( $poi_id, 'city_poi_completed', 1 );
 
+	// Sync to all Polylang translations so the server-side completed flag
+	// is consistent regardless of the language the map renders in.
+	if ( function_exists( 'pll_get_post_translations' ) ) {
+		foreach ( pll_get_post_translations( $poi_id ) as $tr_id ) {
+			if ( (int) $tr_id !== $poi_id ) {
+				update_post_meta( (int) $tr_id, 'city_poi_completed', 1 );
+			}
+		}
+	}
+
 	wp_send_json_success( array( 'poi_id' => $poi_id ) );
 }
 add_action( 'wp_ajax_city_complete_poi', 'city_ajax_complete_poi' );
@@ -49,6 +59,15 @@ function city_ajax_toggle_favorite() {
 	$new     = $current ? 0 : 1;
 
 	update_post_meta( $poi_id, 'city_poi_favorite', $new );
+
+	// Sync to all Polylang translations.
+	if ( function_exists( 'pll_get_post_translations' ) ) {
+		foreach ( pll_get_post_translations( $poi_id ) as $tr_id ) {
+			if ( (int) $tr_id !== $poi_id ) {
+				update_post_meta( (int) $tr_id, 'city_poi_favorite', $new );
+			}
+		}
+	}
 
 	wp_send_json_success( array(
 		'poi_id'  => $poi_id,

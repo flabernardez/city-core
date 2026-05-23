@@ -20,13 +20,23 @@
 		}
 	}
 
-	// ── Extract POI slug from a list item element ─────────────────────────────
+	// ── Extract POI base slug from a list item element ──────────────────────
+	//
+	// On translated pages the URL slug may be e.g. "museo-en" while
+	// localStorage stores the base (default-language) slug "museo".
+	// window.cityBaseSlugMap (injected by PHP) maps translated → base.
 
 	function getSlugFromLi( li ) {
 		var a = li.querySelector( 'a[href*="/poi/"]' );
 		if ( ! a ) return '';
 		var m = a.getAttribute( 'href' ).match( /\/poi\/([^\/]+)\/?/ );
-		return m ? m[ 1 ] : '';
+		if ( ! m ) return '';
+		var slug = m[ 1 ];
+		// Resolve to base slug if a map is available.
+		if ( window.cityBaseSlugMap && window.cityBaseSlugMap[ slug ] ) {
+			return window.cityBaseSlugMap[ slug ];
+		}
+		return slug;
 	}
 
 	// ── Collect slugs from ALL matching keys in localStorage ─────────────────
@@ -184,7 +194,9 @@
 
 	function initPoiPage() {
 		var poiData   = window.cityPoiData || {};
-		var poiSlug   = poiData.slug || getPoiSlugFromUrl();
+		// Use baseSlug (default-language POI slug) for localStorage so
+		// favorites are shared across all language versions of the same POI.
+		var poiSlug   = poiData.baseSlug || poiData.slug || getPoiSlugFromUrl();
 		var citySlug  = poiData.citySlug || '';
 		if ( ! poiSlug ) return;
 

@@ -284,17 +284,20 @@ function city_ajax_preview_pois() {
 	$categories_list = array_keys( $categories_seen );
 
 	// Which of those cities/categories don't exist yet?
+	// Use city_term_exists_any_language() instead of get_term_by() to bypass
+	// Polylang's language filtering — terms without a language assigned
+	// (created before Polylang was activated) are invisible to filtered queries.
 	$new_cities = array();
 	foreach ( $cities_list as $name ) {
 		$slug = sanitize_title( remove_accents( $name ) );
-		if ( ! get_term_by( 'slug', $slug, 'city' ) ) {
+		if ( ! city_term_exists_any_language( $slug, 'city' ) ) {
 			$new_cities[] = $name;
 		}
 	}
 	$new_categories = array();
 	foreach ( $categories_list as $name ) {
 		$slug = sanitize_title( remove_accents( $name ) );
-		if ( ! get_term_by( 'slug', $slug, 'poi-category' ) ) {
+		if ( ! city_term_exists_any_language( $slug, 'poi-category' ) ) {
 			$new_categories[] = $name;
 		}
 	}
@@ -452,10 +455,14 @@ function city_import_single_poi( $header, $row, $col ) {
 		$city_slug = sanitize_title( remove_accents( $ciudad ) );
 		$city_term = wp_insert_term( $ciudad, 'city', array( 'slug' => $city_slug ) );
 		if ( is_wp_error( $city_term ) ) {
-			// Term already exists - get it by slug.
-			$existing = get_term_by( 'slug', $city_slug, 'city' );
-			if ( $existing ) {
-				wp_set_object_terms( $poi_id, (int) $existing->term_id, 'city' );
+			// Term already exists — get its ID from the error data (bypasses
+			// Polylang's language filter which can hide language-less terms).
+			$existing_id = $city_term->get_error_data();
+			if ( ! $existing_id ) {
+				$existing_id = city_term_exists_any_language( $city_slug, 'city' );
+			}
+			if ( $existing_id ) {
+				wp_set_object_terms( $poi_id, (int) $existing_id, 'city' );
 			}
 		} else {
 			wp_set_object_terms( $poi_id, (int) $city_term['term_id'], 'city' );
@@ -471,13 +478,31 @@ function city_import_single_poi( $header, $row, $col ) {
 		$cat_slug = sanitize_title( remove_accents( $categoria ) );
 		$cat_term = wp_insert_term( $categoria, 'poi-category', array( 'slug' => $cat_slug ) );
 		if ( is_wp_error( $cat_term ) ) {
-			// Term already exists - get it by slug.
-			$existing = get_term_by( 'slug', $cat_slug, 'poi-category' );
-			if ( $existing ) {
-				wp_set_object_terms( $poi_id, (int) $existing->term_id, 'poi-category' );
+			// Term already exists — get its ID from the error data (bypasses
+			// Polylang's language filter which can hide language-less terms).
+			$existing_id = $cat_term->get_error_data();
+			if ( ! $existing_id ) {
+				$existing_id = city_term_exists_any_language( $cat_slug, 'poi-category' );
+			}
+			if ( $existing_id ) {
+				wp_set_object_terms( $poi_id, (int) $existing_id, 'poi-category' );
+				// Ensure the term has a language in Polylang (terms created
+				// before Polylang was activated may lack one).
+				if ( function_exists( 'pll_set_term_language' ) && function_exists( 'pll_get_term_language' ) ) {
+					$term_lang = pll_get_term_language( (int) $existing_id );
+					if ( ! $term_lang ) {
+						pll_set_term_language( (int) $existing_id, pll_default_language() );
+					}
+				}
 			}
 		} else {
-			wp_set_object_terms( $poi_id, (int) $cat_term['term_id'], 'poi-category' );
+			$new_term_id = (int) $cat_term['term_id'];
+			wp_set_object_terms( $poi_id, $new_term_id, 'poi-category' );
+			// Assign default language to newly created terms so Polylang
+			// can see them in language-filtered views.
+			if ( function_exists( 'pll_set_term_language' ) ) {
+				pll_set_term_language( $new_term_id, pll_default_language() );
+			}
 		}
 	}
 
@@ -570,12 +595,15 @@ function city_ensure_translated_poi_category( $base_term_id, $translated_name, $
 		return $existing_id;
 	}
 
-	// Create the translated term.
-	$slug   = sanitize_title( remove_accents( $translated_name ) );
-	$result = wp_insert_term( $translated_name, 'poi-category', array( 'slug' => $slug ) );
+	// Create the translated term. Append lang code to the slug so that
+	// identical names across languages (e.g. "Restaurant" in fr and en)
+	// don't collide: restaurant-fr, restaurant-en.
+	$base_slug = sanitize_title( remove_accents( $translated_name ) );
+	$slug      = $base_slug . '-' . $lang_code;
+	$result    = wp_insert_term( $translated_name, 'poi-category', array( 'slug' => $slug ) );
 
 	if ( is_wp_error( $result ) ) {
-		// Term with that slug might exist — get it.
+		// Term with that slug might already exist — reuse it.
 		$term = get_term_by( 'slug', $slug, 'poi-category' );
 		if ( $term ) {
 			$translated_term_id = $term->term_id;
@@ -1127,6 +1155,61 @@ function city_get_image_id_by_filename( $filename ) {
 }
 
 /**
+ * Find an attachment by its original remote URL stored as post meta.
+ *
+ * When `city_find_or_import_image()` downloads a file via `media_sideload_image()`,
+ * it stores the source URL as `_city_source_url` meta. This is the most reliable
+ * deduplication check because WordPress changes the GUID to a local URL and may
+ * rename the filename to avoid collisions.
+ *
+ * @since 0.8
+ *
+ * @param string $url Original remote image URL.
+ * @return int|false Attachment ID or false.
+ */
+function city_get_image_id_by_source_url( $url ) {
+	global $wpdb;
+
+	$id = $wpdb->get_var( $wpdb->prepare(
+		"SELECT post_id FROM {$wpdb->postmeta}
+		 WHERE meta_key = '_city_source_url'
+		 AND meta_value = %s
+		 LIMIT 1",
+		$url
+	) );
+
+	return $id ? (int) $id : false;
+}
+
+/**
+ * Check whether a taxonomy term exists in any language.
+ *
+ * Direct SQL query that bypasses Polylang's language filtering on term lookups.
+ * Terms created before Polylang was activated have no language assigned and are
+ * invisible to filtered queries like `get_term_by()`.
+ *
+ * @since 0.8
+ *
+ * @param string $slug     Term slug.
+ * @param string $taxonomy Taxonomy name.
+ * @return int Term ID if it exists, 0 otherwise.
+ */
+function city_term_exists_any_language( $slug, $taxonomy ) {
+	global $wpdb;
+
+	$id = $wpdb->get_var( $wpdb->prepare(
+		"SELECT t.term_id FROM {$wpdb->terms} t
+		 INNER JOIN {$wpdb->term_taxonomy} tt ON t.term_id = tt.term_id
+		 WHERE tt.taxonomy = %s AND t.slug = %s
+		 LIMIT 1",
+		$taxonomy,
+		$slug
+	) );
+
+	return $id ? (int) $id : 0;
+}
+
+/**
  * Find an existing image in the media library or download it.
  *
  * Checks for duplicates in this order:
@@ -1148,20 +1231,31 @@ function city_find_or_import_image( $url, $post_id ) {
 		return array( 'id' => 0, 'log' => '' );
 	}
 
-	// 1. Check by GUID (exact URL match).
+	// 1. Check by source URL meta (most reliable — stored by this function on download).
+	$att_id = city_get_image_id_by_source_url( $url );
+	if ( $att_id ) {
+		return array(
+			'id'  => $att_id,
+			'log' => 'Image reused (same source URL already in media)',
+		);
+	}
+
+	// 2. Check by GUID (catches manually uploaded images whose GUID matches).
 	$att_id = city_get_image_id_by_url( $url );
 	if ( $att_id ) {
+		update_post_meta( $att_id, '_city_source_url', $url );
 		return array(
 			'id'  => $att_id,
 			'log' => 'Image reused (same URL already in media)',
 		);
 	}
 
-	// 2. Check by filename in _wp_attached_file meta.
+	// 3. Check by filename in _wp_attached_file meta.
 	$filename = basename( parse_url( $url, PHP_URL_PATH ) );
 	if ( $filename ) {
 		$att_id = city_get_image_id_by_filename( $filename );
 		if ( $att_id ) {
+			update_post_meta( $att_id, '_city_source_url', $url );
 			return array(
 				'id'  => $att_id,
 				'log' => sprintf( 'Image reused (filename "%s" found in media, skipped download)', $filename ),
@@ -1169,7 +1263,7 @@ function city_find_or_import_image( $url, $post_id ) {
 		}
 	}
 
-	// 3. Not found anywhere — download.
+	// 4. Not found anywhere — download.
 	$att_id = media_sideload_image( $url, $post_id, null, 'id' );
 	if ( is_wp_error( $att_id ) ) {
 		return array(
@@ -1177,6 +1271,9 @@ function city_find_or_import_image( $url, $post_id ) {
 			'log' => sprintf( 'Image download FAILED: %s', $att_id->get_error_message() ),
 		);
 	}
+
+	// Store the source URL for future deduplication.
+	update_post_meta( $att_id, '_city_source_url', $url );
 
 	return array(
 		'id'  => (int) $att_id,

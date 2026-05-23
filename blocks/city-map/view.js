@@ -276,18 +276,22 @@ async function initCityMap() {
 	let completedChanged = false;
 
 	for ( const poi of poisData ) {
+		// Use baseSlug (default-language POI slug) for localStorage so
+		// progress is shared across all language versions of the same POI.
+		const bSlug = poi.baseSlug || poi.slug;
+
 		// Completed is true if either localStorage OR server-side meta say so.
 		// This ensures completed POIs always show as completed on the map,
 		// even from a fresh browser/device where localStorage is empty.
-		const isCompleted = !! poi.completed || completedSlugs.has( poi.slug );
+		const isCompleted = !! poi.completed || completedSlugs.has( bSlug );
 
 		// Sync localStorage with server state when server says completed but localStorage doesn't.
-		if ( isCompleted && ! completedSlugs.has( poi.slug ) ) {
-			completedSlugs.add( poi.slug );
+		if ( isCompleted && ! completedSlugs.has( bSlug ) ) {
+			completedSlugs.add( bSlug );
 			completedChanged = true;
 		}
 
-		const isUnlocked  = unlockedSlugs.has( poi.slug );
+		const isUnlocked  = unlockedSlugs.has( bSlug );
 		const marker      = L.marker(
 			[ poi.lat, poi.lng ],
 			{ icon: getMarkerIcon( poi, isUnlocked, isCompleted ) }
@@ -463,7 +467,8 @@ async function initCityMap() {
 		let anyChange = false;
 
 		for ( const slug in markers ) {
-			const item      = markers[ slug ];
+			const item = markers[ slug ];
+			const bSlug = item.poi.baseSlug || item.poi.slug;
 
 			// Completed POIs are permanent — never re-lock them.
 			if ( item.completed ) {
@@ -476,7 +481,7 @@ async function initCityMap() {
 			if ( item.unlocked ) {
 				if ( dist > tolerance ) {
 					item.unlocked = false;
-					unlockedSlugs.delete( slug );
+					unlockedSlugs.delete( bSlug );
 					anyChange = true;
 
 					item.marker.setIcon( lockedIcon( lockedUseCategory ? item.poi.color : '' ) );
@@ -486,7 +491,7 @@ async function initCityMap() {
 			} else {
 				if ( dist <= tolerance ) {
 					item.unlocked = true;
-					unlockedSlugs.add( slug );
+					unlockedSlugs.add( bSlug );
 					anyChange = true;
 
 					item.marker.setIcon( unlockedIcon() );
@@ -647,14 +652,16 @@ async function initCityMap() {
 	// ── Listen for quiz-completed events (from quiz block) ───────────────
 	window.addEventListener( 'cityPoiCompleted', function( e ) {
 		var slug    = e.detail.poiSlug;
+		var bSlug   = e.detail.baseSlug || slug;
 		var item    = markers[ slug ];
 		if ( ! item ) return;
 
-		// Mark as completed (never re-locks).
+		// Mark as completed (never re-locks). Use baseSlug for storage
+		// so progress is shared across language versions.
 		item.completed = true;
 		item.unlocked  = true;
-		completedSlugs.add( slug );
-		unlockedSlugs.add( slug );
+		completedSlugs.add( bSlug );
+		unlockedSlugs.add( bSlug );
 		saveCompleted( citySlug, completedSlugs );
 		saveUnlocked( citySlug, unlockedSlugs );
 
