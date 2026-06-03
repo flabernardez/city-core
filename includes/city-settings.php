@@ -440,11 +440,34 @@ function city_render_settings_page() {
 				}
 
 				// Cities & categories summary.
+				var citiesLangs   = data.cities_languages || {};
+				var newCityMaps   = data.new_city_maps    || {};
+				var newCitiesSet  = {};
+				for (var nci = 0; nci < data.new_cities.length; nci++) {
+					newCitiesSet[ data.new_cities[ nci ] ] = true;
+				}
+				function langChip(lang, isNew) {
+					var bg = isNew ? '#0073aa' : '#ddd';
+					var fg = isNew ? '#fff' : '#333';
+					return '<span style="display:inline-block;background:' + bg + ';color:' + fg + ';padding:1px 6px;border-radius:3px;font-size:11px;font-weight:600;margin:0 2px;text-transform:uppercase;">' + esc(lang) + '</span>';
+				}
+				function cityWithLangs(name) {
+					var html = '<span style="display:inline-block;margin:2px 8px 2px 0;">' + esc(name);
+					var langs   = citiesLangs[ name ] || [];
+					var missing = newCityMaps[ name ] || [];
+					for (var li = 0; li < langs.length; li++) {
+						html += langChip(langs[ li ], missing.indexOf(langs[ li ]) !== -1);
+					}
+					html += '</span>';
+					return html;
+				}
+
 				html += '<div style="display:flex;gap:20px;flex-wrap:wrap;margin:12px 0;">';
 				html += '<div style="flex:1;min-width:240px;"><strong>🏙️ <?php esc_html_e( 'Cities in sheet', 'city-core' ); ?> (' + data.cities_in_sheet.length + '):</strong><br>';
-				html += data.cities_in_sheet.map(function(c) { return esc(c); }).join(', ') || '<em>—</em>';
+				html += data.cities_in_sheet.map(cityWithLangs).join('') || '<em>—</em>';
+				html += '<p style="margin:6px 0 0;font-size:11px;color:#666;"><span style="display:inline-block;background:#0073aa;color:#fff;padding:1px 6px;border-radius:3px;font-size:11px;font-weight:600;">ES</span> <?php esc_html_e( 'highlighted = map will be created in that language', 'city-core' ); ?></p>';
 				if (data.new_cities.length) {
-					html += '<br><span style="color:#0073aa;"><strong><?php esc_html_e( 'NEW (will be created):', 'city-core' ); ?></strong> ' + data.new_cities.map(esc).join(', ') + '</span>';
+					html += '<p style="margin:6px 0 0;color:#0073aa;"><strong><?php esc_html_e( 'NEW city terms (will be created):', 'city-core' ); ?></strong> ' + data.new_cities.map(esc).join(', ') + '</p>';
 				}
 				html += '</div>';
 

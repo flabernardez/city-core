@@ -295,35 +295,16 @@ function city_quiz_block_render( $attributes, $content, $block ) {
 					// Set cookie for Block Visibility (persistent 1 year).
 					document.cookie = 'city_poi_quiz_status=ok; path=/; max-age=31536000; SameSite=Lax';
 
-					// Save to server via AJAX, then reload so cookie-controlled
-					// sections (Block Visibility with city_poi_quiz_status=ok)
-					// render server-side with the reward content.
-					var xhr = new XMLHttpRequest();
-					xhr.open('POST', '<?php echo admin_url( 'admin-ajax.php' ); ?>', true);
-					xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
-
-					var reloaded = false;
-					function reloadAfterFeedback() {
-						if (reloaded) return;
-						reloaded = true;
-						// Brief pause so the user sees the success message.
-						setTimeout(function () {
-							window.location.reload();
-						}, 1200);
-					}
-
-					xhr.onload  = reloadAfterFeedback;
-					xhr.onerror = reloadAfterFeedback;
-
-					// Safety net: reload even if onload/onerror never fire.
-					setTimeout(reloadAfterFeedback, 3000);
-
-					xhr.send('action=city_complete_poi&nonce=' + encodeURIComponent(nonce) + '&poi_id=' + poiId);
-
 					// Dispatch event for map to update.
 					window.dispatchEvent(new CustomEvent('cityPoiCompleted', {
 						detail: { poiId: poiId, poiSlug: poiSlug, baseSlug: baseSlug, citySlug: citySlug }
 					}));
+
+					// Reload after brief pause so Block Visibility renders
+					// with the updated cookie (reward sections become visible).
+					setTimeout(function () {
+						window.location.reload();
+					}, 1200);
 
 				} else {
 					// Incorrect — do NOT reveal the correct answer.

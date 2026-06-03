@@ -273,23 +273,14 @@ async function initCityMap() {
 
 	// ── Create markers ─────────────────────────────────────────────────────
 	const markers = {};
-	let completedChanged = false;
 
 	for ( const poi of poisData ) {
 		// Use baseSlug (default-language POI slug) for localStorage so
 		// progress is shared across all language versions of the same POI.
 		const bSlug = poi.baseSlug || poi.slug;
 
-		// Completed is true if either localStorage OR server-side meta say so.
-		// This ensures completed POIs always show as completed on the map,
-		// even from a fresh browser/device where localStorage is empty.
-		const isCompleted = !! poi.completed || completedSlugs.has( bSlug );
-
-		// Sync localStorage with server state when server says completed but localStorage doesn't.
-		if ( isCompleted && ! completedSlugs.has( bSlug ) ) {
-			completedSlugs.add( bSlug );
-			completedChanged = true;
-		}
+		// Completed state comes from localStorage only (per-device).
+		const isCompleted = completedSlugs.has( bSlug );
 
 		const isUnlocked  = unlockedSlugs.has( bSlug );
 		const marker      = L.marker(
@@ -307,11 +298,6 @@ async function initCityMap() {
 		if ( deepPoi && poi.slug === deepPoi && ( isUnlocked || isCompleted ) ) {
 			marker.openPopup();
 		}
-	}
-
-	// Persist localStorage if we added server-side completions.
-	if ( completedChanged ) {
-		saveCompleted( citySlug, completedSlugs );
 	}
 
 	// ── Fit all markers ──────────────────────────────────────────────────────

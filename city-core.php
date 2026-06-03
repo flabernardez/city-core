@@ -130,6 +130,13 @@ function city_enqueue_favorites_script() {
 		?>
 		<script>
 		window.cityPoiData = <?php echo wp_json_encode( array( 'slug' => $poi_slug, 'baseSlug' => $base_slug, 'citySlug' => $city_slug ) ); ?>;
+		// Clear quiz status cookie on POI pages without a quiz block, so
+		// Block Visibility conditions don't leak from a previously visited POI.
+		document.addEventListener('DOMContentLoaded', function() {
+			if (!document.querySelector('.city-quiz')) {
+				document.cookie = 'city_poi_quiz_status=; path=/; max-age=0; SameSite=Lax';
+			}
+		});
 		</script>
 		<?php
 	}

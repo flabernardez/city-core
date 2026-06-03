@@ -194,7 +194,6 @@ function city_map_block_render( $attributes, $content, $block ) {
 				'categorySvg'   => $category_svg,
 				'categorySlug'  => $category_slug,
 				'tolerance'     => (int) $tolerance_meters,
-				'completed'     => (bool) get_post_meta( $poi_id, 'city_poi_completed', true ),
 			);
 		}
 		wp_reset_postdata();

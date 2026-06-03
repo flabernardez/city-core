@@ -11,68 +11,31 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 /**
- * Mark a POI as completed (called when quiz answered correctly).
+ * Mark a POI as completed — no-op.
+ *
+ * Completion state is now stored client-side only (localStorage + cookie)
+ * so each device maintains its own progress. The endpoint is kept registered
+ * to avoid 400 errors from any legacy scripts that still call it.
  *
  * @since 0.4
  */
 function city_ajax_complete_poi() {
-	check_ajax_referer( 'city_poi_nonce', 'nonce' );
-
-	$poi_id = isset( $_POST['poi_id'] ) ? absint( $_POST['poi_id'] ) : 0;
-
-	if ( ! $poi_id || get_post_type( $poi_id ) !== 'poi' ) {
-		wp_send_json_error( 'Invalid POI ID' );
-	}
-
-	update_post_meta( $poi_id, 'city_poi_completed', 1 );
-
-	// Sync to all Polylang translations so the server-side completed flag
-	// is consistent regardless of the language the map renders in.
-	if ( function_exists( 'pll_get_post_translations' ) ) {
-		foreach ( pll_get_post_translations( $poi_id ) as $tr_id ) {
-			if ( (int) $tr_id !== $poi_id ) {
-				update_post_meta( (int) $tr_id, 'city_poi_completed', 1 );
-			}
-		}
-	}
-
-	wp_send_json_success( array( 'poi_id' => $poi_id ) );
+	wp_send_json_success();
 }
 add_action( 'wp_ajax_city_complete_poi', 'city_ajax_complete_poi' );
 add_action( 'wp_ajax_nopriv_city_complete_poi', 'city_ajax_complete_poi' );
 
 /**
- * Toggle favorite state for a POI.
+ * Toggle favorite state for a POI — no-op.
+ *
+ * Favorite state is now stored client-side only (localStorage) so each
+ * device maintains its own list. The endpoint is kept registered to avoid
+ * 400 errors from any legacy scripts that still call it.
  *
  * @since 0.4
  */
 function city_ajax_toggle_favorite() {
-	check_ajax_referer( 'city_poi_nonce', 'nonce' );
-
-	$poi_id = isset( $_POST['poi_id'] ) ? absint( $_POST['poi_id'] ) : 0;
-
-	if ( ! $poi_id || get_post_type( $poi_id ) !== 'poi' ) {
-		wp_send_json_error( 'Invalid POI ID' );
-	}
-
-	$current = (int) get_post_meta( $poi_id, 'city_poi_favorite', true );
-	$new     = $current ? 0 : 1;
-
-	update_post_meta( $poi_id, 'city_poi_favorite', $new );
-
-	// Sync to all Polylang translations.
-	if ( function_exists( 'pll_get_post_translations' ) ) {
-		foreach ( pll_get_post_translations( $poi_id ) as $tr_id ) {
-			if ( (int) $tr_id !== $poi_id ) {
-				update_post_meta( (int) $tr_id, 'city_poi_favorite', $new );
-			}
-		}
-	}
-
-	wp_send_json_success( array(
-		'poi_id'  => $poi_id,
-		'favorite' => $new,
-	) );
+	wp_send_json_success();
 }
 add_action( 'wp_ajax_city_toggle_favorite', 'city_ajax_toggle_favorite' );
 add_action( 'wp_ajax_nopriv_city_toggle_favorite', 'city_ajax_toggle_favorite' );
@@ -109,23 +72,15 @@ add_action( 'wp_ajax_city_get_poi_states', 'city_ajax_get_poi_states' );
 add_action( 'wp_ajax_nopriv_city_get_poi_states', 'city_ajax_get_poi_states' );
 
 /**
- * Reset all player progress globally.
+ * Reset all player progress — no-op on server.
  *
- * Deletes the `city_poi_completed` and `city_poi_favorite` meta keys from
- * EVERY post (delete_all=true), so map markers and quiz state return to
- * their initial locked/un-completed state.
- *
- * Public endpoint (frontend dev button); will be removed for production.
+ * Progress is now client-side only. The real reset happens in the browser
+ * (city-reset-game.js clears localStorage, sessionStorage and cookies).
+ * This endpoint is kept registered to avoid errors from the JS caller.
  *
  * @since 0.8
  */
 function city_ajax_reset_all_progress() {
-	check_ajax_referer( 'city_poi_nonce', 'nonce' );
-
-	// $delete_all = true: removes the meta key from every post in the site.
-	delete_metadata( 'post', 0, 'city_poi_completed', '', true );
-	delete_metadata( 'post', 0, 'city_poi_favorite',  '', true );
-
 	wp_send_json_success();
 }
 add_action( 'wp_ajax_city_reset_all_progress',        'city_ajax_reset_all_progress' );

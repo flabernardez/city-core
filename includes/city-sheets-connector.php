@@ -260,16 +260,30 @@ function city_ajax_preview_pois() {
 		$sample[] = $mapped;
 	}
 
-	// Collect unique cities & categories that would be created.
-	$cities_seen     = array();
-	$categories_seen = array();
-	$ciudad_idx      = isset( $col['ciudad'] ) ? (int) $col['ciudad'] : -1;
-	$categoria_idx   = isset( $col['categoria'] ) ? (int) $col['categoria'] : -1;
+	// Collect unique cities & categories that would be created, plus the
+	// translation languages detected per city.
+	$cities_seen      = array();
+	$categories_seen  = array();
+	$cities_langs     = array(); // city_name => [lang_codes (incl. 'es')]
+	$ciudad_idx       = isset( $col['ciudad'] ) ? (int) $col['ciudad'] : -1;
+	$categoria_idx    = isset( $col['categoria'] ) ? (int) $col['categoria'] : -1;
+
 	foreach ( $rows as $row ) {
 		if ( $ciudad_idx >= 0 && isset( $row[ $ciudad_idx ] ) ) {
 			$v = trim( $row[ $ciudad_idx ] );
 			if ( '' !== $v ) {
 				$cities_seen[ $v ] = true;
+
+				// Aggregate languages detected for this city across all its POIs.
+				if ( ! isset( $cities_langs[ $v ] ) ) {
+					$cities_langs[ $v ] = array( 'es' ); // base language is always present
+				}
+				$row_langs = city_detect_poi_translation_languages( $row, $col );
+				foreach ( $row_langs as $lc ) {
+					if ( ! in_array( $lc, $cities_langs[ $v ], true ) ) {
+						$cities_langs[ $v ][] = $lc;
+					}
+				}
 			}
 		}
 		if ( $categoria_idx >= 0 && isset( $row[ $categoria_idx ] ) ) {
@@ -302,6 +316,30 @@ function city_ajax_preview_pois() {
 		}
 	}
 
+	// Compute which map posts (base + translations) would be created per city.
+	$new_city_maps = array();
+	foreach ( $cities_langs as $city_name => $langs ) {
+		$city_slug = sanitize_title( remove_accents( $city_name ) );
+		$missing   = array();
+		foreach ( $langs as $lc ) {
+			$map_slug = ( 'es' === $lc ) ? $city_slug : $city_slug . '-' . $lc;
+			$found    = get_posts( array(
+				'post_type'   => 'map',
+				'name'        => $map_slug,
+				'numberposts' => 1,
+				'post_status' => 'any',
+				'fields'      => 'ids',
+				'lang'        => '',
+			) );
+			if ( empty( $found ) ) {
+				$missing[] = $lc;
+			}
+		}
+		if ( ! empty( $missing ) ) {
+			$new_city_maps[ $city_name ] = $missing;
+		}
+	}
+
 	wp_send_json_success( array(
 		'header'                 => array_values( array_map( 'trim', $header_raw ) ),
 		'total_rows'             => count( $rows ),
@@ -311,6 +349,8 @@ function city_ajax_preview_pois() {
 		'categories_in_sheet'    => $categories_list,
 		'new_cities'             => $new_cities,
 		'new_categories'         => $new_categories,
+		'cities_languages'       => (object) $cities_langs,
+		'new_city_maps'          => (object) $new_city_maps,
 	) );
 }
 add_action( 'wp_ajax_city_preview_pois', 'city_ajax_preview_pois' );
@@ -468,9 +508,10 @@ function city_import_single_poi( $header, $row, $col ) {
 			wp_set_object_terms( $poi_id, (int) $city_term['term_id'], 'city' );
 		}
 
-		// Ensure a `map` CPT post exists for this city so the /region/{slug}/
-		// page works out of the box when a new city appears in the sheet.
-		city_ensure_map_for_city( $city_slug, $ciudad );
+		// Ensure a `map` CPT post exists for this city (and translations for
+		// any language detected in the row) so the /region/{slug}/ page works
+		// out of the box when a new city or new language appears in the sheet.
+		city_ensure_map_for_city( $city_slug, $ciudad, $row, $col );
 	}
 
 	// Set poi-category taxonomy (create if doesn't exist, or get existing).
@@ -1089,31 +1130,128 @@ function city_validate_sheet_consistency( $rows, $col ) {
 }
 
 /**
- * Ensure there is a `map` CPT post for the given city slug. Creates one with
- * the city-core/map block as initial content if it doesn't exist yet.
+ * Ensure there is a `map` CPT post for the given city slug (base language)
+ * and translated versions for any language detected in the POI row.
+ *
+ * The base map uses the city slug (e.g. `alicante`). Translations follow
+ * the convention `{slug}-{lang}` (e.g. `alicante-eu`). Existing posts —
+ * whether linked via Polylang or matched by slug — are reused; only
+ * missing ones are created. All maps are linked via Polylang.
  *
  * @since 0.8
  *
- * @param string $slug  City slug (post_name for the map).
- * @param string $title Raw city name (post_title).
- * @return int|false Map post ID, or false on failure / if it already existed.
+ * @param string     $slug  City slug (post_name for the base map).
+ * @param string     $title Raw city name (post_title).
+ * @param array|null $row   Optional CSV row (used to detect translation languages).
+ * @param array|null $col   Optional column-name → index map.
+ * @return int|false Base map post ID, or false on failure.
  */
-function city_ensure_map_for_city( $slug, $title ) {
+function city_ensure_map_for_city( $slug, $title, $row = null, $col = null ) {
 	$slug = sanitize_title( $slug );
 	if ( '' === $slug ) {
 		return false;
 	}
 
+	// 1. Find or create the base (default-language) map post.
+	$base_id = city_find_or_create_map_post( $slug, $title );
+	if ( ! $base_id ) {
+		return false;
+	}
+
+	// 2. If Polylang isn't active, we're done.
+	if ( ! function_exists( 'pll_set_post_language' )
+		|| ! function_exists( 'pll_get_post' )
+		|| ! function_exists( 'pll_save_post_translations' ) ) {
+		return $base_id;
+	}
+
+	// Force the base map's language to the default (Polylang may have
+	// auto-assigned a different one when the post was first created).
+	$default_lang = function_exists( 'pll_default_language' ) ? pll_default_language() : 'es';
+	pll_set_post_language( $base_id, $default_lang );
+
+	// 3. Detect which translation languages have content for this POI row.
+	$languages = city_detect_poi_translation_languages( $row, $col );
+	if ( empty( $languages ) ) {
+		return $base_id;
+	}
+
+	$translations = array( $default_lang => $base_id );
+
+	foreach ( $languages as $lang_code ) {
+		$translated_id = 0;
+
+		// 3a. Check if a Polylang translation is already linked.
+		$linked_id = pll_get_post( $base_id, $lang_code );
+		if ( $linked_id ) {
+			$translated_id = (int) $linked_id;
+		} else {
+			// 3b. Try to find an existing post by the conventional slug.
+			$tr_slug = $slug . '-' . $lang_code;
+			$found   = get_posts( array(
+				'post_type'   => 'map',
+				'name'        => $tr_slug,
+				'numberposts' => 1,
+				'post_status' => 'any',
+				'fields'      => 'ids',
+				'lang'        => '',
+			) );
+
+			if ( ! empty( $found ) ) {
+				$translated_id = (int) $found[0];
+			} else {
+				// 3c. Create a new translation map post.
+				$new_id = wp_insert_post( array(
+					'post_type'    => 'map',
+					'post_status'  => 'publish',
+					'post_name'    => $tr_slug,
+					'post_title'   => $title ? $title : $slug,
+					'post_content' => '<!-- wp:city-core/map /-->',
+				) );
+				if ( is_wp_error( $new_id ) || ! $new_id ) {
+					continue;
+				}
+				$translated_id = (int) $new_id;
+			}
+		}
+
+		// Force the translated post's language (Polylang auto-assigns the
+		// default language on new posts, so we always override it here).
+		pll_set_post_language( $translated_id, $lang_code );
+
+		$translations[ $lang_code ] = $translated_id;
+	}
+
+	// 4. Link all translations together via Polylang.
+	if ( count( $translations ) > 1 ) {
+		pll_save_post_translations( $translations );
+	}
+
+	return $base_id;
+}
+
+/**
+ * Find an existing `map` post by slug, or create one with the city-core/map
+ * block as initial content.
+ *
+ * @since 0.9
+ *
+ * @param string $slug  Post slug.
+ * @param string $title Post title.
+ * @return int|false Map post ID, or false on failure.
+ */
+function city_find_or_create_map_post( $slug, $title ) {
 	$existing = get_posts( array(
 		'post_type'   => 'map',
 		'name'        => $slug,
 		'numberposts' => 1,
 		'post_status' => 'any',
 		'fields'      => 'ids',
+		'lang'        => '',
 	) );
 
 	if ( ! empty( $existing ) ) {
-		return false; // Already exists, nothing to do.
+		return (int) $existing[0];
 	}
 
 	$post_id = wp_insert_post( array(
@@ -1125,6 +1263,58 @@ function city_ensure_map_for_city( $slug, $title ) {
 	) );
 
 	return is_wp_error( $post_id ) ? false : (int) $post_id;
+}
+
+/**
+ * Detect which translation languages have any content for the given POI row.
+ *
+ * Returns an array of Polylang language codes (e.g. ['eu', 'fr']) for which
+ * at least one translatable column in the sheet has a non-empty value.
+ *
+ * @since 0.9
+ *
+ * @param array|null $row CSV row values (or null).
+ * @param array|null $col Column-name → index map (or null).
+ * @return string[] Language codes with content.
+ */
+function city_detect_poi_translation_languages( $row, $col ) {
+	if ( ! is_array( $row ) || ! is_array( $col ) ) {
+		return array();
+	}
+
+	$languages = array(
+		'eu' => 'euskera',
+		'fr' => 'frances',
+		'en' => 'ingles',
+	);
+
+	$translatable_columns = array(
+		'informacion',
+		'pista',
+		'pregunta del quiz',
+		'respuesta1',
+		'respuesta2',
+		'respuesta3',
+		'recompensa del quizz',
+	);
+
+	$get = function ( $key ) use ( $row, $col ) {
+		$normalized = sanitize_title( remove_accents( $key ) );
+		$idx        = isset( $col[ $normalized ] ) ? $col[ $normalized ] : -1;
+		return ( $idx >= 0 && $idx < count( $row ) ) ? $row[ $idx ] : '';
+	};
+
+	$found = array();
+	foreach ( $languages as $lang_code => $suffix ) {
+		foreach ( $translatable_columns as $col_base ) {
+			if ( '' !== $get( $col_base . ' ' . $suffix ) ) {
+				$found[] = $lang_code;
+				break;
+			}
+		}
+	}
+
+	return $found;
 }
 
 /**
