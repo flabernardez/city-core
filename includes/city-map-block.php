@@ -248,7 +248,7 @@ function city_map_block_render( $attributes, $content, $block ) {
 #city-map .leaflet-tile{filter:saturate(.65) hue-rotate(12deg) brightness(1.02) contrast(1.06);}
 
 /* Button */
-.city-map-button{position:absolute;right:var(--wp--preset--spacing--50,20px);bottom:106px;z-index:3000;}
+.city-map-button{position:absolute;right:var(--wp--preset--spacing--50,20px);bottom:calc(var(--wp--preset--spacing--50) + 15vh);z-index:3000;}
 #city-center-user-btn{display:flex;align-items:center;justify-content:center;width:44px;height:44px;background:<?php echo esc_attr( city_hex_to_rgba( $map_colors['button_bg'], 0.95 ) ); ?>;color:<?php echo esc_attr( $map_colors['button_text'] ); ?>;border-radius:0;border:2px solid <?php echo esc_attr( $map_colors['button'] ); ?>;box-shadow:0 4px 12px rgba(0,0,0,.25);backdrop-filter:blur(8px);padding:0;text-decoration:none;transition:transform .12s ease,box-shadow .12s ease;}
 #city-center-user-btn:active,#city-center-user-btn.tap{transform:scale(.96);box-shadow:0 2px 8px rgba(0,0,0,.22);}
 
@@ -270,7 +270,7 @@ function city_map_block_render( $attributes, $content, $block ) {
 
 /* User location */
 .city-user-icon{position:relative;width:26px;height:26px;}
-.city-user-wave{position:absolute;top:50%;left:50%;width:26px;height:26px;border-radius:50%;background:<?php echo esc_attr( city_hex_to_rgba( $map_colors['button'], 0.22 ) ); ?>;transform:translate(-50%,-50%) scale(1);z-index:1;animation:cityWave 2.8s ease-out infinite;}
+.city-user-wave{position:absolute;top:50%;left:50%;width:26px;height:26px;border-radius:50%;background:rgba(30,144,255,0.22);transform:translate(-50%,-50%) scale(1);z-index:1;animation:cityWave 2.8s ease-out infinite;}
 .city-user-wave.delay{animation-delay:1.4s;}
 @keyframes cityWave{0%{transform:translate(-50%,-50%) scale(1);opacity:.55;}70%{opacity:.15;}100%{transform:translate(-50%,-50%) scale(3);opacity:0;}}
 .city-user-dot{width:26px;height:26px;border-radius:50%;background:var(--wp--preset--color--core-off-white,#F5F5F5);border:2px solid var(--wp--preset--color--contrast,#1E1E1E);box-shadow:0 4px 10px rgba(0,0,0,.25);display:flex;align-items:center;justify-content:center;position:relative;z-index:3;}

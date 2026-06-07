@@ -3,7 +3,7 @@
  * Plugin Name: City Core
  * Plugin URI:  https://flabernardez.com/city-core
  * Description: Core functions for the City project.
- * Version:     0.7
+ * Version:     0.8
  * Author:      Flavia Bernardez Rodriguez
  * Author URI:  https://flabernardez.com
  * License:     GPL-2.0-or-later
@@ -106,6 +106,15 @@ function city_enqueue_favorites_script() {
 	wp_enqueue_script(
 		'city-details-autoclose',
 		CITY_CORE_URL . 'assets/js/city-details-autoclose.js',
+		array(),
+		CITY_CORE_VERSION,
+		true
+	);
+
+	// Smooth-scroll to summary when clicking #city_secret_info details.
+	wp_enqueue_script(
+		'city-secret-scroll',
+		CITY_CORE_URL . 'assets/js/city-secret-scroll.js',
 		array(),
 		CITY_CORE_VERSION,
 		true

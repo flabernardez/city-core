@@ -564,7 +564,7 @@ function city_import_single_poi( $header, $row, $col ) {
 	update_post_meta( $poi_id, 'city_poi_quiz_correct', city_parse_quiz_correct( $correcta, $respuesta1, $respuesta2, $respuesta3 ) );
 
 	if ( ! empty( $reward_message ) ) {
-		update_post_meta( $poi_id, 'city_poi_reward_message', sanitize_text_field( $reward_message ) );
+		update_post_meta( $poi_id, 'city_poi_reward_message', wp_kses_post( $reward_message ) );
 	}
 
 	// Handle images with deduplication by URL and filename + logging.

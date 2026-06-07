@@ -143,12 +143,12 @@ function city_register_poi_meta() {
 		},
 	) );
 
-	// Reward message shown when quiz is answered correctly.
+	// Reward message shown when quiz is answered correctly (supports safe HTML).
 	register_post_meta( 'poi', 'city_poi_reward_message', array(
 		'type'              => 'string',
 		'single'            => true,
 		'show_in_rest'      => true,
-		'sanitize_callback' => 'sanitize_text_field',
+		'sanitize_callback' => 'wp_kses_post',
 		'auth_callback'     => function () {
 			return current_user_can( 'edit_posts' );
 		},
@@ -404,12 +404,18 @@ function city_poi_quiz_metabox_callback( $post ) {
 	echo '</td>';
 	echo '</tr>';
 
-	// Reward message.
+	// Reward message (WYSIWYG — supports bold, italic, links).
 	echo '<tr>';
-	echo '<th scope="row"><label for="city_poi_reward_message">' . esc_html__( 'Reward Message', 'city-core' ) . '</label></th>';
+	echo '<th scope="row"><label>' . esc_html__( 'Reward Message', 'city-core' ) . '</label></th>';
 	echo '<td>';
-	echo '<input type="text" id="city_poi_reward_message" name="city_poi_reward_message" value="' . esc_attr( $reward_message ) . '" style="width: 100%;" placeholder="' . esc_attr__( 'Correct! POI marked as completed.', 'city-core' ) . '" />';
-	echo '<p class="description">' . esc_html__( 'Custom message shown when the quiz is answered correctly. Leave empty for default.', 'city-core' ) . '</p>';
+	wp_editor( $reward_message, 'city_poi_reward_message', array(
+		'textarea_name' => 'city_poi_reward_message',
+		'media_buttons' => false,
+		'textarea_rows' => 4,
+		'teeny'         => true,
+		'quicktags'     => array( 'buttons' => 'strong,em,link' ),
+	) );
+	echo '<p class="description">' . esc_html__( 'Custom message shown when the quiz is answered correctly. Supports bold, italic and links. Leave empty for default.', 'city-core' ) . '</p>';
 	echo '</td>';
 	echo '</tr>';
 
@@ -539,7 +545,7 @@ function city_save_poi_quiz( $post_id ) {
 	update_post_meta( $post_id, 'city_poi_quiz_answer_3', $answer3 );
 	update_post_meta( $post_id, 'city_poi_quiz_correct', $correct );
 
-	$reward_message = isset( $_POST['city_poi_reward_message'] ) ? sanitize_text_field( $_POST['city_poi_reward_message'] ) : '';
+	$reward_message = isset( $_POST['city_poi_reward_message'] ) ? wp_kses_post( $_POST['city_poi_reward_message'] ) : '';
 	update_post_meta( $post_id, 'city_poi_reward_message', $reward_message );
 
 	$reward_image_id = isset( $_POST['city_poi_quiz_correct_img'] ) ? absint( $_POST['city_poi_quiz_correct_img'] ) : 0;

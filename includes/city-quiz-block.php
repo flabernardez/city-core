@@ -103,7 +103,7 @@ function city_quiz_block_render( $attributes, $content, $block ) {
 
 	ob_start();
 	?>
-	<div class="city-quiz" data-poi="<?php echo esc_attr( wp_json_encode( $poi_data ) ); ?>" data-completed="<?php echo (int) $is_completed; ?>">
+	<div class="city-quiz" data-poi="<?php echo esc_attr( wp_json_encode( $poi_data ) ); ?>" data-completed="<?php echo (int) $is_completed; ?>" data-reward="<?php echo esc_attr( $reward_message ); ?>">
 		<div class="city-quiz-header">
 			<p class="city-quiz-question"><?php echo esc_html( $question ); ?></p>
 		</div>
@@ -367,7 +367,8 @@ function city_quiz_block_render( $attributes, $content, $block ) {
 				xhr.send('action=city_toggle_favorite&nonce=' + encodeURIComponent(nonce) + '&poi_id=' + poiId);
 			});
 		}
-	})();
+
+		})();
 	</script>
 	<?php
 	return ob_get_clean();
