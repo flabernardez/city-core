@@ -462,7 +462,7 @@ async function initCityMap() {
 			}
 
 			const dist      = haversine( userLat, userLng, item.poi.lat, item.poi.lng );
-			const tolerance = item.poi.tolerance || 50;
+			const tolerance = item.poi.tolerance || 30;
 
 			if ( item.unlocked ) {
 				if ( dist > tolerance ) {

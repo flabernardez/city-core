@@ -288,9 +288,9 @@ function city_poi_coordinates_metabox_callback( $post ) {
 	echo '<tr>';
 	echo '<th scope="row">' . esc_html__( 'Location Tolerance', 'city-core' ) . '</th>';
 	echo '<td>';
-	echo '<label for="city_poi_tolerance_strict"><input type="radio" id="city_poi_tolerance_strict" name="city_poi_tolerance" value="strict" ' . checked( $tolerance, 'strict', false ) . ' /> ' . esc_html__( 'Strict (5m)', 'city-core' ) . '</label><br>';
-	echo '<label for="city_poi_tolerance_normal"><input type="radio" id="city_poi_tolerance_normal" name="city_poi_tolerance" value="normal" ' . checked( $tolerance, 'normal', false ) . ' /> ' . esc_html__( 'Normal (50m)', 'city-core' ) . '</label><br>';
-	echo '<label for="city_poi_tolerance_amplio"><input type="radio" id="city_poi_tolerance_amplio" name="city_poi_tolerance" value="amplio" ' . checked( $tolerance, 'amplio', false ) . ' /> ' . esc_html__( 'Wide (500m)', 'city-core' ) . '</label><br>';
+	echo '<label for="city_poi_tolerance_strict"><input type="radio" id="city_poi_tolerance_strict" name="city_poi_tolerance" value="strict" ' . checked( $tolerance, 'strict', false ) . ' /> ' . esc_html__( 'Strict (15m)', 'city-core' ) . '</label><br>';
+	echo '<label for="city_poi_tolerance_normal"><input type="radio" id="city_poi_tolerance_normal" name="city_poi_tolerance" value="normal" ' . checked( $tolerance, 'normal', false ) . ' /> ' . esc_html__( 'Normal (30m)', 'city-core' ) . '</label><br>';
+	echo '<label for="city_poi_tolerance_amplio"><input type="radio" id="city_poi_tolerance_amplio" name="city_poi_tolerance" value="amplio" ' . checked( $tolerance, 'amplio', false ) . ' /> ' . esc_html__( 'Wide (80m)', 'city-core' ) . '</label><br>';
 	echo '</td>';
 	echo '</tr>';
 

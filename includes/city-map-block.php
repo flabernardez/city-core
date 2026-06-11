@@ -138,11 +138,11 @@ function city_map_block_render( $attributes, $content, $block ) {
 				$tolerance = 'normal';
 			}
 
-			$tolerance_meters = 50;
+			$tolerance_meters = 30;
 			if ( 'strict' === $tolerance ) {
-				$tolerance_meters = 5;
+				$tolerance_meters = 15;
 			} elseif ( 'amplio' === $tolerance ) {
-				$tolerance_meters = 500;
+				$tolerance_meters = 80;
 			}
 
 			// ── Category colour, SVG and slug ──────────────────────────────────
@@ -267,6 +267,7 @@ function city_map_block_render( $attributes, $content, $block ) {
 /* No results modal — uses popup colors and Figma style */
 #city-no-results-modal{pointer-events:none;}
 #city-no-results-modal .city-popup-inner{background:<?php echo esc_attr( $map_colors['popup_bg'] ); ?>;border:2px solid <?php echo esc_attr( $map_colors['popup_border'] ); ?>;color:<?php echo esc_attr( $map_colors['popup_text'] ); ?>;box-shadow:none;font-family:var(--wp--preset--font-family--monospace, ui-monospace, "JetBrains Mono", "Courier New", monospace);}
+html.theme-dark #city-no-results-modal .city-popup-inner{background:var(--wp--preset--color--core-off-white) !important;border-color:var(--wp--preset--color--core-black) !important;color:var(--wp--preset--color--core-black) !important;}
 
 /* User location */
 .city-user-icon{position:relative;width:26px;height:26px;}

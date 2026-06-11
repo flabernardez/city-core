@@ -331,6 +331,9 @@ function city_light_modal_overrides_css() {
 			background-color: transparent !important;
 			padding: 1rem !important;
 		}
+		.wp-block-details.is-style-floating-top > *:not(summary) {
+			bottom: 49px;
+		}
 	</style>
 	<?php
 }
