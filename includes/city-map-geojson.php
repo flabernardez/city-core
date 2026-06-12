@@ -31,7 +31,7 @@ function city_register_pois_rest_route() {
 				'required'          => true,
 				'type'              => 'string',
 				'sanitize_callback' => 'sanitize_title',
-				'description'       => __( 'City taxonomy term slug.', 'city-core' ),
+				'description'       => __( 'Region taxonomy term slug.', 'city-core' ),
 			),
 		),
 	) );

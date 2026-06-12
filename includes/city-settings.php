@@ -463,11 +463,11 @@ function city_render_settings_page() {
 				}
 
 				html += '<div style="display:flex;gap:20px;flex-wrap:wrap;margin:12px 0;">';
-				html += '<div style="flex:1;min-width:240px;"><strong>🏙️ <?php esc_html_e( 'Cities in sheet', 'city-core' ); ?> (' + data.cities_in_sheet.length + '):</strong><br>';
+				html += '<div style="flex:1;min-width:240px;"><strong>🏙️ <?php esc_html_e( 'Regions in sheet', 'city-core' ); ?> (' + data.cities_in_sheet.length + '):</strong><br>';
 				html += data.cities_in_sheet.map(cityWithLangs).join('') || '<em>—</em>';
 				html += '<p style="margin:6px 0 0;font-size:11px;color:#666;"><span style="display:inline-block;background:#0073aa;color:#fff;padding:1px 6px;border-radius:3px;font-size:11px;font-weight:600;">ES</span> <?php esc_html_e( 'highlighted = map will be created in that language', 'city-core' ); ?></p>';
 				if (data.new_cities.length) {
-					html += '<p style="margin:6px 0 0;color:#0073aa;"><strong><?php esc_html_e( 'NEW city terms (will be created):', 'city-core' ); ?></strong> ' + data.new_cities.map(esc).join(', ') + '</p>';
+					html += '<p style="margin:6px 0 0;color:#0073aa;"><strong><?php esc_html_e( 'NEW region terms (will be created):', 'city-core' ); ?></strong> ' + data.new_cities.map(esc).join(', ') + '</p>';
 				}
 				html += '</div>';
 

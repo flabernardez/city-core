@@ -273,7 +273,7 @@ function city_inject_poi_category_icons( $block_content, $block ) {
 
 	// Append a "Ver todas" link at the end of the <ul> so the user can clear
 	// the category filter and show all POIs on the map.
-	$view_all_label = esc_html__( 'Ver todas', 'city-core' );
+	$view_all_label = esc_html__( 'View all', 'city-core' );
 	$view_all_li    = '<li class="cat-item city-category-show-all"><a href="#">' . $view_all_label . '</a></li>';
 	$block_content  = str_replace( '</ul>', $view_all_li . '</ul>', $block_content );
 
@@ -317,6 +317,10 @@ add_action( 'wp_head', 'city_poi_category_icons_css' );
  * @since 0.8
  */
 function city_light_modal_overrides_css() {
+	// The floating-top offset is needed in every language EXCEPT Spanish
+	// (Castellano), where it pushes the block upwards incorrectly.
+	$is_spanish = ! function_exists( 'pll_current_language' )
+		|| pll_current_language() === 'es';
 	?>
 	<style>
 		.wp-block-cloudcatch-light-modal-block__wrapper.is-open {
@@ -331,9 +335,11 @@ function city_light_modal_overrides_css() {
 			background-color: transparent !important;
 			padding: 1rem !important;
 		}
+		<?php if ( ! $is_spanish ) : ?>
 		.wp-block-details.is-style-floating-top > *:not(summary) {
 			bottom: 49px;
 		}
+		<?php endif; ?>
 	</style>
 	<?php
 }

@@ -3,9 +3,9 @@
 	"apiVersion": 3,
 	"name": "city-core/map",
 	"version": "0.1.0",
-	"title": "City Map",
+	"title": "Region Map",
 	"category": "embed",
-	"description": "Full-screen Leaflet map showing the Points of Interest for the current city. POIs unlock when the visitor is nearby.",
+	"description": "Full-screen Leaflet map showing the Points of Interest for the current region. POIs unlock when the visitor is nearby.",
 	"supports": {
 		"html": false,
 		"align": ["full", "wide"]

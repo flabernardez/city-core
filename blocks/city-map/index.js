@@ -20,11 +20,11 @@
 					style: { fontSize: '32px', display: 'block', marginBottom: '8px' },
 					'aria-hidden': 'true'
 				}, '🗺️' ),
-				el( 'strong', null, __( 'City Map', 'city-core' ) ),
+				el( 'strong', null, __( 'Region Map', 'city-core' ) ),
 				el(
 					'p',
 					{ style: { margin: '6px 0 0', fontSize: '13px', opacity: '.65' } },
-					__( 'The map is rendered on the frontend with the POIs for this city.', 'city-core' )
+					__( 'The map is rendered on the frontend with the POIs for this region.', 'city-core' )
 				)
 			);
 		},

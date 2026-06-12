@@ -210,7 +210,7 @@ function city_map_block_render( $attributes, $content, $block ) {
 			'viewMore'       => __( 'View more', 'city-core' ),
 			'lockedMsg'      => __( 'Get closer to unlock this point of interest.', 'city-core' ),
 			'completedMsg'   => __( 'Completed!', 'city-core' ),
-			'noResultsMsg'   => __( 'No hay ningún punto de esa categoría en esta ciudad', 'city-core' ),
+			'noResultsMsg'   => __( 'No hay ningún punto de esa categoría en esta región', 'city-core' ),
 		),
 	);
 

@@ -182,7 +182,7 @@ async function initCityMap() {
 	const viewMore      = i18n.viewMore      || 'View more';
 	const lockedMsg     = i18n.lockedMsg     || 'Get closer to unlock this point of interest.';
 	const completedMsg  = i18n.completedMsg  || 'Completed!';
-	const noResultsMsg  = i18n.noResultsMsg  || 'No hay ningún punto de esa categoría en esta ciudad';
+	const noResultsMsg  = i18n.noResultsMsg  || 'No hay ningún punto de esa categoría en esta región';
 
 	// ── Wait for Leaflet to be available ─────────────────────────────────────
 	if ( typeof L === 'undefined' ) {
